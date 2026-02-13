@@ -1,0 +1,317 @@
+"""Summary service for generating and managing conversation summaries."""
+import uuid
+import json
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+
+from models.models import Topic, Message, SummaryHistory
+from config.settings import settings
+
+
+class SummaryResult:
+    """Data class for summary generation result."""
+    
+    def __init__(self, summary: str, suggestion: str, end_score: float):
+        """
+        Initialize SummaryResult.
+        
+        Args:
+            summary: Generated summary text
+            suggestion: LLM suggestion (continue/change_angle/suggest_end/force_end)
+            end_score: End score from 0-100
+        """
+        self.summary = summary
+        self.suggestion = suggestion
+        self.end_score = end_score
+
+
+class SummaryService:
+    """Service for generating and managing conversation summaries."""
+    
+    def __init__(self, db: Session):
+        """
+        Initialize SummaryService.
+        
+        Args:
+            db: Database session
+        """
+        self.db = db
+    
+    def generate_summary(
+        self,
+        topic: Topic,
+        new_messages: List[Message]
+    ) -> SummaryResult:
+        """
+        Generate a new cumulative summary using DeepSeek API.
+        
+        This method constructs a prompt with the old summary and new messages,
+        calls the DeepSeek LLM, and parses the response to extract the summary,
+        suggestion, and end score.
+        
+        Args:
+            topic: Topic object containing old summary
+            new_messages: List of new messages since last summary
+        
+        Returns:
+            SummaryResult containing summary, suggestion, and end_score
+        
+        Raises:
+            Exception: If LLM API call fails
+        """
+        # Build prompt for DeepSeek
+        prompt = self._build_summary_prompt(topic.summary, new_messages)
+        
+        # Call DeepSeek API (to be implemented with actual API integration)
+        # For now, this is a placeholder that will be replaced with actual LLM call
+        llm_response = self._call_deepseek_api(prompt)
+        
+        # Parse LLM response
+        summary, suggestion, end_score = self._parse_llm_response(llm_response)
+        
+        return SummaryResult(
+            summary=summary,
+            suggestion=suggestion,
+            end_score=end_score
+        )
+    
+    def update_topic_summary(
+        self,
+        topic_id: str,
+        summary: str,
+        suggestion: str,
+        end_score: float
+    ) -> None:
+        """
+        Update topic's summary, suggestion, and end score.
+        
+        Args:
+            topic_id: ID of the topic to update
+            summary: New summary text
+            suggestion: LLM suggestion
+            end_score: End score (0-100)
+        
+        Raises:
+            ValueError: If topic not found
+        """
+        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
+        if not topic:
+            raise ValueError(f"Topic {topic_id} not found")
+        
+        topic.summary = summary
+        topic.llm_suggestion = suggestion
+        topic.end_score = end_score
+        topic.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+    
+    def save_summary_history(
+        self,
+        topic_id: str,
+        summary: str,
+        suggestion: str,
+        end_score: float
+    ) -> SummaryHistory:
+        """
+        Save a summary history record.
+        
+        Args:
+            topic_id: ID of the topic
+            summary: Summary text
+            suggestion: LLM suggestion
+            end_score: End score (0-100)
+        
+        Returns:
+            Created SummaryHistory object
+        """
+        history = SummaryHistory(
+            id=str(uuid.uuid4()),
+            topic_id=topic_id,
+            summary=summary,
+            llm_suggestion=suggestion,
+            end_score=end_score,
+            created_at=datetime.utcnow()
+        )
+        
+        self.db.add(history)
+        self.db.commit()
+        self.db.refresh(history)
+        
+        return history
+    
+    def get_summary_history(
+        self,
+        topic_id: str,
+        limit: int = 10
+    ) -> List[SummaryHistory]:
+        """
+        Get historical summary versions for a topic.
+        
+        Args:
+            topic_id: ID of the topic
+            limit: Maximum number of history records to return
+        
+        Returns:
+            List of SummaryHistory objects, newest first
+        """
+        return self.db.query(SummaryHistory).filter(
+            SummaryHistory.topic_id == topic_id
+        ).order_by(
+            SummaryHistory.created_at.desc()
+        ).limit(limit).all()
+    
+    def rollback_summary(self, topic_id: str, history_id: str) -> None:
+        """
+        Rollback topic summary to a historical version.
+        
+        This method restores the topic's summary, suggestion, and end_score
+        from a historical record. Note: last_summarized_message_id should be
+        updated by the caller if needed.
+        
+        Args:
+            topic_id: ID of the topic
+            history_id: ID of the history record to restore
+        
+        Raises:
+            ValueError: If topic or history not found, or history doesn't belong to topic
+        """
+        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
+        if not topic:
+            raise ValueError(f"Topic {topic_id} not found")
+        
+        history = self.db.query(SummaryHistory).filter(
+            SummaryHistory.id == history_id
+        ).first()
+        if not history:
+            raise ValueError(f"History {history_id} not found")
+        
+        if history.topic_id != topic_id:
+            raise ValueError(f"History {history_id} does not belong to topic {topic_id}")
+        
+        # Restore from history
+        topic.summary = history.summary
+        topic.llm_suggestion = history.llm_suggestion
+        topic.end_score = history.end_score
+        topic.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+    
+    def apply_llm_suggestion(self, topic: Topic, suggestion: str) -> None:
+        """
+        Apply LLM suggestion logic to topic.
+        
+        Currently handles force_end by setting topic to closing_pending.
+        Other suggestions (continue, change_angle, suggest_end) are informational only.
+        
+        Args:
+            topic: Topic object to apply suggestion to
+            suggestion: LLM suggestion to apply
+        """
+        if suggestion == "force_end":
+            # Automatically set topic to closing_pending
+            topic.status = "closing_pending"
+            topic.updated_at = datetime.utcnow()
+            self.db.commit()
+    
+    def _build_summary_prompt(
+        self,
+        old_summary: str,
+        new_messages: List[Message]
+    ) -> str:
+        """
+        Build prompt for DeepSeek summary generation.
+        
+        Args:
+            old_summary: Previous cumulative summary
+            new_messages: New messages to summarize
+        
+        Returns:
+            Formatted prompt string
+        """
+        # Format messages
+        formatted_messages = []
+        for msg in new_messages:
+            formatted_messages.append(f"[{msg.agent_id}]: {msg.content}")
+        
+        messages_text = "\n".join(formatted_messages)
+        
+        prompt = f"""You are a conversation summarization assistant. Please compress the following content into a concise summary.
+
+Historical Summary:
+{old_summary if old_summary else "(No previous summary)"}
+
+New Conversation:
+{messages_text}
+
+Please provide:
+1. Updated cumulative summary (preserve key information)
+2. Conversation suggestion (continue/change_angle/suggest_end/force_end)
+3. End score (0-100, higher means more strongly suggest ending)
+
+Respond in JSON format:
+{{
+    "summary": "your updated summary here",
+    "suggestion": "continue|change_angle|suggest_end|force_end",
+    "end_score": 0-100
+}}"""
+        
+        return prompt
+    
+    def _call_deepseek_api(self, prompt: str) -> Dict[str, Any]:
+        """
+        Call DeepSeek API for summary generation.
+        
+        This is a placeholder that will be replaced with actual API integration.
+        
+        Args:
+            prompt: Prompt to send to DeepSeek
+        
+        Returns:
+            API response as dictionary
+        
+        Raises:
+            Exception: If API call fails
+        """
+        # TODO: Implement actual DeepSeek API call
+        # For now, return a mock response
+        return {
+            "summary": "Mock summary of the conversation",
+            "suggestion": "continue",
+            "end_score": 30.0
+        }
+    
+    def _parse_llm_response(
+        self,
+        response: Dict[str, Any]
+    ) -> tuple[str, str, float]:
+        """
+        Parse LLM response to extract summary, suggestion, and end_score.
+        
+        Args:
+            response: LLM API response
+        
+        Returns:
+            Tuple of (summary, suggestion, end_score)
+        
+        Raises:
+            ValueError: If response format is invalid
+        """
+        try:
+            summary = response.get("summary", "")
+            suggestion = response.get("suggestion", "continue")
+            end_score = float(response.get("end_score", 0.0))
+            
+            # Validate suggestion
+            valid_suggestions = ["continue", "change_angle", "suggest_end", "force_end"]
+            if suggestion not in valid_suggestions:
+                raise ValueError(f"Invalid suggestion: {suggestion}")
+            
+            # Validate end_score range
+            if not (0 <= end_score <= 100):
+                raise ValueError(f"Invalid end_score: {end_score}")
+            
+            return summary, suggestion, end_score
+        
+        except (KeyError, TypeError, ValueError) as e:
+            raise ValueError(f"Failed to parse LLM response: {e}")

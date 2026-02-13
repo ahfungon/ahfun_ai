@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "name": "Auto Git Push",
-  "description": "每当 Kiro 完成一个任务后，自动将更改提交并推送到 git 仓库",
+  "description": "每当 Kiro 完成一个任务后，自动将更改提交并推送到 git 仓库，并说明完成的任务标题。",
   "version": "1",
   "when": {
     "type": "agentStop"
@@ -10,5 +10,7 @@
     "type": "runCommand",
     "command": "git add -A && git commit -m \"Auto commit: Task completed by Kiro\" && git push",
     "timeout": 30
-  }
+  },
+  "workspaceFolderName": "ahfun_ai",
+  "shortName": "auto-git-push"
 }
