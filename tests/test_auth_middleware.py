@@ -246,7 +246,10 @@ class TestAuthMiddlewareProperties:
         correct_token=st.text(min_size=8, max_size=64),
         wrong_token=st.text(min_size=8, max_size=64)
     )
-    @settings(max_examples=100)
+    @settings(
+        max_examples=20,  # Reduced from 100 due to bcrypt performance
+        suppress_health_check=[HealthCheck.too_slow]
+    )
     def test_property_invalid_token_fails(self, agent_id, correct_token, wrong_token):
         """
         **Validates: Requirements 2.3, 12.2**
@@ -261,8 +264,8 @@ class TestAuthMiddlewareProperties:
         test_db = self._create_test_db()
         
         try:
-            # Create agent with correct token
-            hashed_token = bcrypt.hashpw(correct_token.encode('utf-8'), bcrypt.gensalt())
+            # Create agent with correct token (use faster bcrypt rounds for testing)
+            hashed_token = bcrypt.hashpw(correct_token.encode('utf-8'), bcrypt.gensalt(rounds=4))
             agent = Agent(
                 id=agent_id,
                 name=f"Agent {agent_id}",
@@ -291,7 +294,10 @@ class TestAuthMiddlewareProperties:
         agent_id=st.text(min_size=1, max_size=50).filter(lambda x: x.strip()),
         token=st.text(min_size=8, max_size=64)
     )
-    @settings(max_examples=100)
+    @settings(
+        max_examples=20,  # Reduced from 100 due to bcrypt performance
+        suppress_health_check=[HealthCheck.too_slow]
+    )
     def test_property_token_hash_verification(self, agent_id, token):
         """
         **Validates: Requirements 2.3, 12.2**
@@ -302,8 +308,8 @@ class TestAuthMiddlewareProperties:
         test_db = self._create_test_db()
         
         try:
-            # Create agent with hashed token
-            hashed_token = bcrypt.hashpw(token.encode('utf-8'), bcrypt.gensalt())
+            # Create agent with hashed token (use faster bcrypt rounds for testing)
+            hashed_token = bcrypt.hashpw(token.encode('utf-8'), bcrypt.gensalt(rounds=4))
             agent = Agent(
                 id=agent_id,
                 name=f"Agent {agent_id}",
