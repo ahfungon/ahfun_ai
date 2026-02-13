@@ -20,7 +20,7 @@
 
 ## 任务列表
 
-- [-] 1. 搭建项目结构和依赖
+- [x] 1. 搭建项目结构和依赖
   - 创建Python项目，使用FastAPI、SQLAlchemy、Celery、Redis客户端
   - 设置虚拟环境和requirements.txt
   - 检查是否已安装数据库等，具备必须的运行条件
