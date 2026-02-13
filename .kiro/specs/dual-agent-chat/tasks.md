@@ -28,8 +28,8 @@
   - 设置环境变量：数据库、Redis、LLM API密钥
   - _需求：所有（基础）_
 
-- [ ] 2. 实现数据库模型和Schema
-  - [ ] 2.1 创建SQLAlchemy模型
+- [-] 2. 实现数据库模型和Schema
+  - [x] 2.1 创建SQLAlchemy模型
     - 定义Topic、Message、Agent、SummaryJob、SummaryHistory、AuditLog模型
     - 添加所有字段，包含正确的类型和约束
     - 为status字段和分数范围添加CHECK约束

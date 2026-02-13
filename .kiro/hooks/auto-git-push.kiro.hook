@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Auto Git Push",
+  "description": "每当 Kiro 完成一个任务后，自动将更改提交并推送到 git 仓库",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "git add -A && git commit -m \"Auto commit: Task completed by Kiro\" && git push",
+    "timeout": 30
+  }
+}
