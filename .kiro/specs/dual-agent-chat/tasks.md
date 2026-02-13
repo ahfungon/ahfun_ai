@@ -69,7 +69,7 @@
     - _需求：2.3, 12.2_
 
 - [ ] 4. 实现TopicService
-  - [ ] 4.1 创建TopicService类及CRUD操作
+  - [x] 4.1 创建TopicService类及CRUD操作
     - 实现get_active_topic() - 查询active/closing_pending主题
     - 实现create_topic(title) - 创建新主题，设置默认值
     - 实现close_topic(topic_id) - 设置状态为closed
