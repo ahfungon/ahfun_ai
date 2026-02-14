@@ -1,7 +1,7 @@
 """API routes for the Dual Agent Chat Platform."""
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
