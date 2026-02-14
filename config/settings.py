@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     
     # Database Configuration
     database_url: str = Field(
-        default="sqlite:///./dual_agent_chat.db",
-        description="Database connection string"
+        default="postgresql://dual_agent_user:dual_agent_pass@localhost:5432/dual_agent_chat",
+        description="Database connection string (PostgreSQL only)"
     )
     
     # Redis Configuration

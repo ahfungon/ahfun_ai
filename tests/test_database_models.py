@@ -17,13 +17,20 @@ from models.models import Topic, Message, Agent, SummaryJob, SummaryHistory, Aud
 # ============================================================================
 
 def _create_test_db():
-    """Helper to create a test database session."""
-    from sqlalchemy import create_engine
+    """Helper to create a test database session using PostgreSQL."""
+    from sqlalchemy import create_engine, text
     from sqlalchemy.orm import sessionmaker
     from models.database import Base
+    from config.settings import settings
     
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine(settings.database_url, echo=False)
     Base.metadata.create_all(engine)
+    
+    # Clean up before test
+    with engine.connect() as conn:
+        conn.execute(text("TRUNCATE TABLE messages, summary_history, summary_jobs, audit_logs, topics, agents RESTART IDENTITY CASCADE"))
+        conn.commit()
+    
     TestSessionLocal = sessionmaker(bind=engine)
     return TestSessionLocal()
 

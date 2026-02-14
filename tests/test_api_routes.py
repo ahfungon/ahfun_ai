@@ -11,11 +11,11 @@ from models.database import Base, get_db
 from models.models import Agent, Topic, Message
 
 
-# Create a shared test engine with StaticPool for thread safety
+# Create a shared test engine using PostgreSQL
+from config.settings import settings
 TEST_ENGINE = create_engine(
-    "sqlite:///:memory:",
+    settings.database_url,
     echo=False,
-    connect_args={"check_same_thread": False},
     poolclass=StaticPool  # Use StaticPool to share connection across threads
 )
 

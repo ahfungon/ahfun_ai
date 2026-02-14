@@ -1,6 +1,6 @@
 """Pytest configuration and fixtures for database model tests."""
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from models.database import Base
 from models.models import Topic, Message, Agent, SummaryJob, SummaryHistory, AuditLog
@@ -8,14 +8,16 @@ from models.models import Topic, Message, Agent, SummaryJob, SummaryHistory, Aud
 
 @pytest.fixture(scope="function")
 def test_db():
-    """Create a test database for each test function."""
-    # Use in-memory SQLite for fast tests
-    # Add check_same_thread=False for FastAPI async compatibility
+    """Create a test database for each test function using PostgreSQL."""
+    from config.settings import settings
+    
+    # Use PostgreSQL for tests
     engine = create_engine(
-        "sqlite:///:memory:",
-        echo=False,
-        connect_args={"check_same_thread": False}
+        settings.database_url,
+        echo=False
     )
+    
+    # Create all tables
     Base.metadata.create_all(engine)
     
     TestSessionLocal = sessionmaker(bind=engine)
@@ -23,8 +25,13 @@ def test_db():
     
     yield session
     
+    # Clean up: delete all data but keep tables
     session.close()
-    Base.metadata.drop_all(engine)
+    
+    # Truncate all tables
+    with engine.connect() as conn:
+        conn.execute(text("TRUNCATE TABLE messages, summary_history, summary_jobs, audit_logs, topics, agents RESTART IDENTITY CASCADE"))
+        conn.commit()
 
 
 @pytest.fixture(scope="function")

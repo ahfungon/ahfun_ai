@@ -6,7 +6,7 @@ This guide will help you set up the development environment for the Dual Agent C
 
 - Python 3.9 or higher
 - Redis (for task queue)
-- PostgreSQL (optional, SQLite is used by default for development)
+- PostgreSQL (required for database)
 
 ## Quick Start
 
@@ -31,8 +31,8 @@ pip install -r requirements.txt
 
 ### 4. Configure Environment
 
-The `.env` file has been created with default settings. For development, it uses:
-- SQLite database (no PostgreSQL required)
+The `.env` file has been created with default settings. It uses:
+- PostgreSQL database (required)
 - Redis on localhost:6379
 - Default configuration values
 
@@ -193,7 +193,7 @@ Key environment variables in `.env`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | Database connection string | `sqlite:///./dual_agent_chat.db` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://dual_agent_user:dual_agent_pass@localhost:5432/dual_agent_chat` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
 | `SUMMARY_THRESHOLD` | Token count to trigger summary | `8000` |
 | `CLOSING_TIMEOUT` | Timeout for closing_pending (seconds) | `300` |
@@ -222,8 +222,8 @@ If you see import errors:
 
 If you see database errors:
 1. Check `DATABASE_URL` in `.env`
-2. For SQLite, ensure write permissions in project directory
-3. For PostgreSQL, ensure database exists and credentials are correct
+2. Ensure PostgreSQL is running: `brew services list | grep postgresql`
+3. Ensure database exists and credentials are correct
 
 ## Next Steps
 

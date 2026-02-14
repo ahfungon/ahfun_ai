@@ -12,13 +12,20 @@ from config.settings import settings
 
 @pytest.fixture
 def test_db():
-    """Create a test database session."""
-    engine = create_engine("sqlite:///:memory:")
+    """Create a test database session using PostgreSQL."""
+    from sqlalchemy import text
+    
+    engine = create_engine(settings.database_url)
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine)
     db = TestingSessionLocal()
     yield db
     db.close()
+    
+    # Clean up
+    with engine.connect() as conn:
+        conn.execute(text("TRUNCATE TABLE messages, summary_history, summary_jobs, audit_logs, topics, agents RESTART IDENTITY CASCADE"))
+        conn.commit()
 
 
 @pytest.fixture

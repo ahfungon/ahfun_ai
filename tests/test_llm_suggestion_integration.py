@@ -27,11 +27,11 @@ from services.topic_service import TopicService
 from workers.tasks import process_summary_job
 
 
-# Create a shared test engine with StaticPool for thread safety
+# Create a shared test engine using PostgreSQL
+from config.settings import settings
 TEST_ENGINE = create_engine(
-    "sqlite:///:memory:",
+    settings.database_url,
     echo=False,
-    connect_args={"check_same_thread": False},
     poolclass=StaticPool  # Use StaticPool to share connection across threads
 )
 

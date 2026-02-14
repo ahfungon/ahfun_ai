@@ -163,11 +163,21 @@ class TestAuthMiddlewareProperties:
     """Property-based tests for AuthMiddleware using Hypothesis."""
     
     def _create_test_db(self):
-        """Create a fresh test database session."""
-        engine = create_engine("sqlite:///:memory:", echo=False)
+        """Create a fresh test database session using PostgreSQL."""
+        from config.settings import settings
+        from sqlalchemy import text
+        
+        engine = create_engine(settings.database_url, echo=False)
         Base.metadata.create_all(engine)
         TestSessionLocal = sessionmaker(bind=engine)
-        return TestSessionLocal()
+        session = TestSessionLocal()
+        
+        # Clean up before test
+        with engine.connect() as conn:
+            conn.execute(text("TRUNCATE TABLE messages, summary_history, summary_jobs, audit_logs, topics, agents RESTART IDENTITY CASCADE"))
+            conn.commit()
+        
+        return session
     
     # Feature: dual-agent-chat, Property 5: 认证失败返回401
     # Validates: Requirements 2.3, 12.2

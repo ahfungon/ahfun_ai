@@ -103,8 +103,8 @@ redis-cli ping
 Edit `.env` file to customize:
 
 ```bash
-# Database (SQLite for development)
-DATABASE_URL=sqlite:///./dual_agent_chat.db
+# Database (PostgreSQL)
+DATABASE_URL=postgresql://dual_agent_user:dual_agent_pass@localhost:5432/dual_agent_chat
 
 # Redis
 REDIS_URL=redis://localhost:6379/0

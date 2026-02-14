@@ -19,8 +19,10 @@ from config.settings import settings as app_settings
 # Context manager for test database
 @contextmanager
 def get_test_db():
-    """Create a test database session as a context manager."""
-    engine = create_engine("sqlite:///:memory:")
+    """Create a test database session as a context manager using PostgreSQL."""
+    from sqlalchemy import text
+    
+    engine = create_engine(app_settings.database_url)
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine)
     db = TestingSessionLocal()
@@ -28,6 +30,10 @@ def get_test_db():
         yield db
     finally:
         db.close()
+        # Clean up
+        with engine.connect() as conn:
+            conn.execute(text("TRUNCATE TABLE messages, summary_history, summary_jobs, audit_logs, topics, agents RESTART IDENTITY CASCADE"))
+            conn.commit()
         Base.metadata.drop_all(engine)
 
 

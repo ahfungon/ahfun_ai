@@ -31,9 +31,7 @@ ENV/
 .env.local
 
 # Database
-*.db
-*.sqlite
-*.sqlite3
+# Note: Using PostgreSQL only, no local database files
 
 # IDE
 .vscode/
