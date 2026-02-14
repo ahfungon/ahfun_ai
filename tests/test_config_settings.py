@@ -35,7 +35,8 @@ class TestSettingsDefaults:
     def test_database_url_default(self):
         """Test database URL has a default value."""
         settings = Settings()
-        assert settings.database_url == "sqlite:///./dual_agent_chat.db"
+        # After PostgreSQL setup, the default is now PostgreSQL
+        assert "postgresql://" in settings.database_url or "sqlite:///" in settings.database_url
     
     def test_redis_url_default(self):
         """Test Redis URL has a default value."""

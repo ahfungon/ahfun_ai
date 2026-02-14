@@ -10,7 +10,12 @@ from models.models import Topic, Message, Agent, SummaryJob, SummaryHistory, Aud
 def test_db():
     """Create a test database for each test function."""
     # Use in-memory SQLite for fast tests
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    # Add check_same_thread=False for FastAPI async compatibility
+    engine = create_engine(
+        "sqlite:///:memory:",
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     
     TestSessionLocal = sessionmaker(bind=engine)
