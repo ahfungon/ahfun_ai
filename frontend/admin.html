@@ -241,6 +241,7 @@
         <div class="header">
             <h1>双Agent对话平台管理</h1>
             <div>
+                <input type="text" id="adminAgentId" placeholder="Agent ID" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-right: 10px; width: 120px;">
                 <input type="text" id="adminToken" placeholder="Agent Token" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px; margin-right: 10px;">
                 <button class="btn btn-primary" onclick="admin.setToken()">设置Token</button>
             </div>
@@ -354,10 +355,14 @@
     <script>
         const admin = {
             apiUrl: 'http://localhost:8000/api',
+            agentId: localStorage.getItem('adminAgentId') || '',
             token: localStorage.getItem('adminToken') || '',
             currentSection: 'dashboard',
 
             init() {
+                if (this.agentId) {
+                    document.getElementById('adminAgentId').value = this.agentId;
+                }
                 if (this.token) {
                     document.getElementById('adminToken').value = this.token;
                 }
@@ -365,14 +370,17 @@
             },
 
             setToken() {
+                const agentId = document.getElementById('adminAgentId').value.trim();
                 const token = document.getElementById('adminToken').value.trim();
-                if (token) {
+                if (agentId && token) {
+                    this.agentId = agentId;
                     this.token = token;
+                    localStorage.setItem('adminAgentId', agentId);
                     localStorage.setItem('adminToken', token);
                     this.showAlert('Token已设置', 'success');
                     this.loadDashboard();
                 } else {
-                    this.showAlert('请输入有效的Token', 'error');
+                    this.showAlert('请输入Agent ID和Token', 'error');
                 }
             },
 
@@ -397,11 +405,14 @@
             },
 
             async loadDashboard() {
-                if (!this.token) return;
+                if (!this.agentId || !this.token) return;
 
                 try {
                     const response = await fetch(`${this.apiUrl}/topic/active`, {
-                        headers: { 'X-Agent-Token': this.token }
+                        headers: { 
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token 
+                        }
                     });
 
                     if (response.ok) {
@@ -413,7 +424,10 @@
 
                         const messagesResp = await fetch(
                             `${this.apiUrl}/topic/${topic.topic_id}/messages?limit=100`,
-                            { headers: { 'X-Agent-Token': this.token } }
+                            { headers: { 
+                                'X-Agent-Id': this.agentId,
+                                'X-Auth-Token': this.token 
+                            } }
                         );
                         const messagesData = await messagesResp.json();
                         document.getElementById('stat-messages').textContent = messagesData.messages.length;
@@ -463,7 +477,7 @@
             },
 
             async createTopic() {
-                if (!this.token) {
+                if (!this.agentId || !this.token) {
                     this.showAlert('请先设置Token', 'error');
                     return;
                 }
@@ -475,7 +489,8 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Agent-Token': this.token
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token
                         },
                         body: JSON.stringify({ title: title || null })
                     });
@@ -502,7 +517,10 @@
                 try {
                     const response = await fetch(`${this.apiUrl}/topic/${topicId}/request-close`, {
                         method: 'POST',
-                        headers: { 'X-Agent-Token': this.token }
+                        headers: { 
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token 
+                        }
                     });
 
                     if (response.ok) {
@@ -526,7 +544,10 @@
                 try {
                     const response = await fetch(`${this.apiUrl}/topic/${topicId}/cancel-close`, {
                         method: 'POST',
-                        headers: { 'X-Agent-Token': this.token }
+                        headers: { 
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token 
+                        }
                     });
 
                     if (response.ok) {
@@ -554,7 +575,8 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Agent-Token': this.token
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token
                         },
                         body: JSON.stringify({
                             topic_id: topicId,
@@ -585,7 +607,10 @@
                 try {
                     const response = await fetch(
                         `${this.apiUrl}/topic/${topicId}/summary-history?limit=20`,
-                        { headers: { 'X-Agent-Token': this.token } }
+                        { headers: { 
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token 
+                        } }
                     );
 
                     if (response.ok) {

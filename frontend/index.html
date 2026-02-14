@@ -258,6 +258,7 @@
         <div class="header">
             <h1>🤖 双Agent对话平台</h1>
             <div class="auth-section">
+                <input type="text" id="agentId" placeholder="Agent ID (如: agent-1)" style="width: 150px;" />
                 <input type="text" id="agentToken" placeholder="输入Agent Token" />
                 <button class="btn btn-primary" onclick="app.setToken()">设置Token</button>
                 <button class="btn btn-success" onclick="app.refresh()">刷新</button>
@@ -290,11 +291,15 @@
     <script>
         const app = {
             apiUrl: 'http://localhost:8000/api',
+            agentId: localStorage.getItem('agentId') || '',
             token: localStorage.getItem('agentToken') || '',
             currentTopicId: null,
             refreshInterval: null,
 
             init() {
+                if (this.agentId) {
+                    document.getElementById('agentId').value = this.agentId;
+                }
                 if (this.token) {
                     document.getElementById('agentToken').value = this.token;
                 }
@@ -303,20 +308,23 @@
             },
 
             setToken() {
+                const agentId = document.getElementById('agentId').value.trim();
                 const token = document.getElementById('agentToken').value.trim();
-                if (token) {
+                if (agentId && token) {
+                    this.agentId = agentId;
                     this.token = token;
+                    localStorage.setItem('agentId', agentId);
                     localStorage.setItem('agentToken', token);
                     this.showError('Token已设置', 'success');
                     this.loadData();
                 } else {
-                    this.showError('请输入有效的Token');
+                    this.showError('请输入Agent ID和Token');
                 }
             },
 
             async loadData() {
-                if (!this.token) {
-                    this.showError('请先设置Agent Token');
+                if (!this.agentId || !this.token) {
+                    this.showError('请先设置Agent ID和Token');
                     return;
                 }
 
@@ -333,7 +341,8 @@
             async loadTopic() {
                 const response = await fetch(`${this.apiUrl}/topic/active`, {
                     headers: {
-                        'X-Agent-Token': this.token
+                        'X-Agent-Id': this.agentId,
+                        'X-Auth-Token': this.token
                     }
                 });
 
@@ -366,7 +375,8 @@
                     `${this.apiUrl}/topic/${this.currentTopicId}/messages?limit=50`,
                     {
                         headers: {
-                            'X-Agent-Token': this.token
+                            'X-Agent-Id': this.agentId,
+                            'X-Auth-Token': this.token
                         }
                     }
                 );
