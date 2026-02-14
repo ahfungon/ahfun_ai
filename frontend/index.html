@@ -303,8 +303,15 @@
                 if (this.token) {
                     document.getElementById('agentToken').value = this.token;
                 }
-                this.loadData();
-                this.startAutoRefresh();
+                
+                // 只有在已设置认证信息时才加载数据和启动自动刷新
+                if (this.agentId && this.token) {
+                    this.loadData();
+                    this.startAutoRefresh();
+                } else {
+                    // 显示提示信息
+                    this.loadData();
+                }
             },
 
             setToken() {
@@ -315,7 +322,13 @@
                     this.token = token;
                     localStorage.setItem('agentId', agentId);
                     localStorage.setItem('agentToken', token);
-                    this.showError('Token已设置', 'success');
+                    this.showError('Token已设置，正在加载数据...', 'success');
+                    
+                    // 重新启动自动刷新
+                    this.stopAutoRefresh();
+                    this.startAutoRefresh();
+                    
+                    // 立即加载数据
                     this.loadData();
                 } else {
                     this.showError('请输入Agent ID和Token');
@@ -324,7 +337,17 @@
 
             async loadData() {
                 if (!this.agentId || !this.token) {
-                    this.showError('请先设置Agent ID和Token');
+                    // 未设置认证信息时，显示提示而不是报错
+                    document.getElementById('topicInfo').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔐</div>
+                            <div>请先在页面顶部设置 Agent ID 和 Token</div>
+                            <div style="margin-top: 10px; font-size: 14px; color: #666;">
+                                <a href="/auth-info.html" target="_blank" style="color: #667eea;">点击查看认证信息</a>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('messagesContainer').innerHTML = '';
                     return;
                 }
 
@@ -347,6 +370,21 @@
                 });
 
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        // 认证失败
+                        document.getElementById('topicInfo').innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">❌</div>
+                                <div>认证失败</div>
+                                <div style="margin-top: 10px; font-size: 14px; color: #666;">
+                                    请检查 Agent ID 和 Token 是否正确<br>
+                                    <a href="/auth-info.html" target="_blank" style="color: #667eea;">点击查看正确的认证信息</a>
+                                </div>
+                            </div>
+                        `;
+                        this.stopAutoRefresh(); // 停止自动刷新
+                        return;
+                    }
                     if (response.status === 404) {
                         document.getElementById('topicInfo').innerHTML = `
                             <div class="empty-state">
