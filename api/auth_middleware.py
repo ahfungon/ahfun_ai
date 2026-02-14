@@ -22,6 +22,10 @@ class AuthMiddleware:
         """
         Authenticate an agent from request headers.
         
+        Supports two authentication modes:
+        1. X-Agent-Id + X-Auth-Token (original mode)
+        2. X-Agent-Token only (new mode for self-registered agents)
+        
         Args:
             request: FastAPI Request object containing headers
             db: Database session for querying agents
@@ -32,13 +36,33 @@ class AuthMiddleware:
         Raises:
             AuthenticationError: If authentication fails for any reason
         """
-        # Extract headers
+        # Check for new single-token authentication mode
+        agent_token = request.headers.get("X-Agent-Token")
+        
+        if agent_token:
+            # New mode: authenticate using token only
+            # Query all agents and check token hash
+            agents = db.query(Agent).all()
+            
+            for agent in agents:
+                try:
+                    token_bytes = agent_token.encode('utf-8')
+                    hash_bytes = agent.auth_token_hash.encode('utf-8')
+                    
+                    if bcrypt.checkpw(token_bytes, hash_bytes):
+                        return agent
+                except (ValueError, AttributeError):
+                    continue
+            
+            raise AuthenticationError("Invalid authentication token")
+        
+        # Original mode: X-Agent-Id + X-Auth-Token
         agent_id = request.headers.get("X-Agent-Id")
         auth_token = request.headers.get("X-Auth-Token")
         
         # Check if headers are present
         if not agent_id:
-            raise AuthenticationError("Missing X-Agent-Id header")
+            raise AuthenticationError("Missing X-Agent-Id or X-Agent-Token header")
         
         if not auth_token:
             raise AuthenticationError("Missing X-Auth-Token header")

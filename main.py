@@ -35,7 +35,9 @@ app = FastAPI(
     description="A lightweight AI collaboration discussion system",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    # 使用稳定版本的 ReDoc CDN
+    redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@2.1.3/bundles/redoc.standalone.js",
 )
 
 # Configure CORS

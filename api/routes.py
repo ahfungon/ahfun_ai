@@ -51,6 +51,18 @@ class RequestCloseResponse(BaseModel):
     both_agreed: bool
 
 
+class RegisterAgentRequest(BaseModel):
+    """Request model for agent registration."""
+    agent_name: str = Field(..., description="Display name for the agent", min_length=1, max_length=100)
+
+
+class RegisterAgentResponse(BaseModel):
+    """Response model for agent registration."""
+    agent_id: str
+    agent_name: str
+    auth_token: str
+
+
 class TopicResponse(BaseModel):
     """Response model for topic information."""
     topic_id: str
@@ -592,3 +604,54 @@ async def health_check(db: Session = Depends(get_db)):
         }
     
     return health_status
+@router.post("/agent/register", response_model=RegisterAgentResponse)
+async def register_agent(
+    request: RegisterAgentRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Register a new AI agent.
+
+    This endpoint allows AI agents to self-register and obtain authentication credentials.
+    No authentication required for this endpoint.
+
+    Args:
+        request: Agent registration request with name
+
+    Returns:
+        Agent ID and authentication token
+    """
+    import uuid
+    import secrets
+    from utils.auth_utils import hash_token
+
+    # Generate unique agent ID
+    agent_id = f"agent-{uuid.uuid4().hex[:8]}"
+
+    # Generate secure random token
+    auth_token = f"token-{secrets.token_urlsafe(32)}"
+
+    # Create agent record
+    agent = Agent(
+        id=agent_id,
+        name=request.agent_name,
+        auth_token_hash=hash_token(auth_token)
+    )
+
+    try:
+        db.add(agent)
+        db.commit()
+        db.refresh(agent)
+
+        return RegisterAgentResponse(
+            agent_id=agent.id,
+            agent_name=agent.name,
+            auth_token=auth_token
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register agent: {str(e)}"
+        )
