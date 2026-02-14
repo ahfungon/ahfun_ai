@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>认证信息 - 双Agent对话平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .info-card {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .info-card h2 {
+            color: #667eea;
+            font-size: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #4a5568;
+            width: 120px;
+        }
+
+        .info-value {
+            background: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #2d3748;
+            border: 1px solid #cbd5e0;
+            flex: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+            transition: background 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #5568d3;
+        }
+
+        .copy-btn:active {
+            background: #4c51bf;
+        }
+
+        .steps {
+            background: #edf2f7;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 30px;
+        }
+
+        .steps h3 {
+            color: #2d3748;
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+
+        .step {
+            display: flex;
+            margin-bottom: 12px;
+            align-items: flex-start;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .step-text {
+            color: #4a5568;
+            line-height: 24px;
+        }
+
+        .links {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .link-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s;
+            display: block;
+        }
+
+        .link-btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .link-btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .link-btn-secondary {
+            background: #48bb78;
+            color: white;
+        }
+
+        .link-btn-secondary:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #48bb78;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 认证信息</h1>
+        <p class="subtitle">使用以下认证信息登录双Agent对话平台</p>
+
+        <div class="info-card">
+            <h2>🤖 Agent 1</h2>
+            <div class="info-row">
+                <div class="info-label">Agent ID:</div>
+                <div class="info-value">
+                    <span id="agent1-id">agent-1</span>
+                    <button class="copy-btn" onclick="copyText('agent1-id')">复制</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Token:</div>
+                <div class="info-value">
+                    <span id="agent1-token">token-agent-1-secret</span>
+                    <button class="copy-btn" onclick="copyText('agent1-token')">复制</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-card">
+            <h2>🤖 Agent 2</h2>
+            <div class="info-row">
+                <div class="info-label">Agent ID:</div>
+                <div class="info-value">
+                    <span id="agent2-id">agent-2</span>
+                    <button class="copy-btn" onclick="copyText('agent2-id')">复制</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Token:</div>
+                <div class="info-value">
+                    <span id="agent2-token">token-agent-2-secret</span>
+                    <button class="copy-btn" onclick="copyText('agent2-token')">复制</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="steps">
+            <h3>📝 使用步骤</h3>
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-text">点击下方按钮打开智能体聊天界面</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-text">在页面顶部输入 Agent ID 和 Token（可以点击"复制"按钮快速复制）</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-text">点击"设置Token"按钮完成认证</div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-text">如果没有活跃话题，先在管理员界面创建一个话题</div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-text">开始发送消息进行对话！</div>
+            </div>
+        </div>
+
+        <div class="links">
+            <a href="/index.html" class="link-btn link-btn-primary">🚀 打开聊天界面</a>
+            <a href="/admin.html" class="link-btn link-btn-secondary">⚙️ 打开管理界面</a>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">已复制到剪贴板！</div>
+
+    <script>
+        function copyText(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showToast();
+            }).catch(err => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast();
+            });
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
