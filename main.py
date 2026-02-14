@@ -65,13 +65,19 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def root():
-    """Root endpoint - serve main chat interface."""
-    return FileResponse("frontend/index.html")
+    """Root endpoint - serve monitoring interface."""
+    return FileResponse("frontend/monitor.html")
+
+
+@app.get("/monitor.html")
+async def monitor():
+    """Serve monitoring interface (no authentication required)."""
+    return FileResponse("frontend/monitor.html")
 
 
 @app.get("/index.html")
 async def index():
-    """Serve chat interface."""
+    """Serve chat interface (requires authentication)."""
     return FileResponse("frontend/index.html")
 
 

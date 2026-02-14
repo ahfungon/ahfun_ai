@@ -122,6 +122,86 @@ def get_current_agent(request: Request, db: Session = Depends(get_db)) -> Agent:
 
 # API Endpoints
 
+@router.get("/monitor/topic/active", response_model=TopicResponse)
+async def monitor_active_topic(db: Session = Depends(get_db)):
+    """
+    Monitor endpoint: Get the current active topic without authentication.
+    This endpoint is for monitoring/display purposes only.
+    
+    Returns topic information including summary, LLM suggestion, and status.
+    """
+    topic_service = TopicService(db)
+    topic = topic_service.get_active_topic()
+    
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active topic found"
+        )
+    
+    # Get closing status details if in closing_pending state
+    closing_status = None
+    if topic.status == "closing_pending":
+        closing_status = topic_service.get_closing_status(topic.id)
+    
+    # Get LLM hint if applicable
+    llm_hint = None
+    if topic.llm_suggestion and topic.status != "closing_pending":
+        llm_hint = _get_llm_hint(topic.llm_suggestion)
+    
+    return TopicResponse(
+        topic_id=topic.id,
+        title=topic.title,
+        status=topic.status,
+        summary=topic.summary,
+        llm_suggestion=topic.llm_suggestion,
+        llm_hint=llm_hint,
+        end_score=topic.end_score,
+        token_count_since_summary=topic.token_count_since_summary,
+        agent_a_wants_close=topic.agent_a_wants_close,
+        agent_b_wants_close=topic.agent_b_wants_close,
+        closing_requested_by=closing_status.get("requested_by") if closing_status else None,
+        closing_requested_at=closing_status.get("requested_at") if closing_status else None,
+        closing_timeout_remaining=closing_status.get("timeout_remaining") if closing_status else None,
+        created_at=topic.created_at,
+        updated_at=topic.updated_at
+    )
+
+
+@router.get("/monitor/topic/{topic_id}/messages", response_model=MessagesResponse)
+async def monitor_topic_messages(
+    topic_id: str,
+    limit: int = Query(default=50, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Monitor endpoint: Get messages for a topic without authentication.
+    This endpoint is for monitoring/display purposes only.
+    
+    Args:
+        topic_id: Topic ID
+        limit: Maximum number of messages to return (default: 50, max: 1000)
+    
+    Returns:
+        List of messages ordered by creation time
+    """
+    message_service = MessageService(db)
+    messages = message_service.get_messages(topic_id, limit=limit)
+    
+    return MessagesResponse(
+        messages=[
+            MessageResponse(
+                message_id=msg.id,
+                topic_id=msg.topic_id,
+                agent_id=msg.agent_id,
+                content=msg.content,
+                created_at=msg.created_at
+            )
+            for msg in messages
+        ]
+    )
+
+
 @router.get("/topic/active", response_model=TopicResponse)
 async def get_active_topic(
     db: Session = Depends(get_db),
