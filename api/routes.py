@@ -1,4 +1,5 @@
 """API routes for the Dual Agent Chat Platform."""
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from pydantic import BaseModel, Field
@@ -419,17 +420,88 @@ async def rollback_summary(
 
 
 @router.get("/health")
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """
     Health check endpoint.
     
     Returns system status and service availability.
+    Checks:
+    - Database connection
+    - Redis connection
+    - LLM services (OpenClaw and DeepSeek)
+    
+    Validates:
+        Requirement 12.9
     """
-    # Basic health check - will be enhanced in Task 20
-    return {
+    from services.llm_clients.openclaw_client import OpenClawClient
+    from services.llm_clients.deepseek_client import DeepSeekClient
+    import redis
+    from config.settings import settings
+    
+    health_status = {
         "status": "ok",
-        "message": "Service is running",
-        "database": "connected",  # TODO: Add actual database check
-        "redis": "unknown",  # TODO: Add Redis check
-        "llm_service": "unknown"  # TODO: Add LLM service check
+        "timestamp": datetime.utcnow().isoformat(),
+        "services": {}
     }
+    
+    # Check database connection
+    try:
+        # Simple query to test database
+        db.execute("SELECT 1")
+        health_status["services"]["database"] = {
+            "status": "healthy",
+            "message": "Database connection successful"
+        }
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["services"]["database"] = {
+            "status": "unhealthy",
+            "message": f"Database connection failed: {str(e)}"
+        }
+    
+    # Check Redis connection
+    try:
+        redis_client = redis.from_url(settings.redis_url)
+        redis_client.ping()
+        health_status["services"]["redis"] = {
+            "status": "healthy",
+            "message": "Redis connection successful"
+        }
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["services"]["redis"] = {
+            "status": "unhealthy",
+            "message": f"Redis connection failed: {str(e)}"
+        }
+    
+    # Check OpenClaw LLM service
+    try:
+        openclaw_client = OpenClawClient()
+        # We don't actually call the API, just check if client can be initialized
+        health_status["services"]["openclaw"] = {
+            "status": "healthy",
+            "message": "OpenClaw client initialized"
+        }
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["services"]["openclaw"] = {
+            "status": "unhealthy",
+            "message": f"OpenClaw client initialization failed: {str(e)}"
+        }
+    
+    # Check DeepSeek LLM service
+    try:
+        deepseek_client = DeepSeekClient()
+        # We don't actually call the API, just check if client can be initialized
+        health_status["services"]["deepseek"] = {
+            "status": "healthy",
+            "message": "DeepSeek client initialized"
+        }
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["services"]["deepseek"] = {
+            "status": "unhealthy",
+            "message": f"DeepSeek client initialization failed: {str(e)}"
+        }
+    
+    return health_status

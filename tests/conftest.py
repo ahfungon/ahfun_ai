@@ -60,3 +60,26 @@ def sample_agent(test_db):
     test_db.refresh(agent)
     
     return agent
+
+
+@pytest.fixture(scope="function")
+def test_agents(test_db):
+    """Create multiple test agents for testing."""
+    from uuid import uuid4
+    import bcrypt
+    
+    agents = []
+    for i in range(2):
+        agent = Agent(
+            id=str(uuid4()),
+            name=f"Test Agent {i}",
+            auth_token_hash=bcrypt.hashpw(f"test_token_{i}".encode(), bcrypt.gensalt()).decode()
+        )
+        test_db.add(agent)
+        agents.append(agent)
+    
+    test_db.commit()
+    for agent in agents:
+        test_db.refresh(agent)
+    
+    return agents

@@ -103,11 +103,35 @@ class TestHealthEndpoint:
     """Tests for health check endpoint."""
     
     def test_health_check(self, client):
-        """Test health check endpoint returns OK."""
+        """
+        Test health check endpoint returns proper status.
+        
+        Feature: dual-agent-chat, Property 47: 健康检查API
+        Validates Requirement 12.9
+        """
         response = client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ok"
+        
+        # Check response structure
+        assert "status" in data
+        assert "timestamp" in data
+        assert "services" in data
+        
+        # Status should be either "ok" or "degraded"
+        assert data["status"] in ["ok", "degraded"]
+        
+        # Check that all services are reported
+        assert "database" in data["services"]
+        assert "redis" in data["services"]
+        assert "openclaw" in data["services"]
+        assert "deepseek" in data["services"]
+        
+        # Each service should have status and message
+        for service_name, service_info in data["services"].items():
+            assert "status" in service_info
+            assert "message" in service_info
+            assert service_info["status"] in ["healthy", "unhealthy"]
 
 
 class TestAuthenticationRequired:
