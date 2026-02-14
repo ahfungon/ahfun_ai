@@ -80,6 +80,7 @@ class MessageResponse(BaseModel):
     """Response model for a single message."""
     message_id: str
     agent_id: str
+    agent_name: Optional[str] = None
     content: str
     created_at: str
 
@@ -200,12 +201,18 @@ async def monitor_topic_messages(
     message_service = MessageService(db)
     messages = message_service.get_messages(topic_id, limit=limit)
     
+    # Get agent names for all messages
+    agent_ids = list(set(msg.agent_id for msg in messages))
+    agents = db.query(Agent).filter(Agent.id.in_(agent_ids)).all()
+    agent_name_map = {agent.id: agent.name for agent in agents}
+    
     return MessagesResponse(
         messages=[
             MessageResponse(
                 message_id=msg.id,
                 topic_id=msg.topic_id,
                 agent_id=msg.agent_id,
+                agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
                 created_at=msg.created_at.isoformat() if msg.created_at else ""
             )
@@ -304,11 +311,17 @@ async def get_topic_messages(
     message_service = MessageService(db)
     messages = message_service.get_messages(topic_id, limit)
     
+    # Get agent names for all messages
+    agent_ids = list(set(msg.agent_id for msg in messages))
+    agents = db.query(Agent).filter(Agent.id.in_(agent_ids)).all()
+    agent_name_map = {agent.id: agent.name for agent in agents}
+    
     return MessagesResponse(
         messages=[
             MessageResponse(
                 message_id=msg.id,
                 agent_id=msg.agent_id,
+                agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
                 created_at=msg.created_at.isoformat()
             )

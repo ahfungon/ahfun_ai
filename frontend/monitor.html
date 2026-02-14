@@ -419,13 +419,13 @@
 
                 const html = messages.map(msg => {
                     const agentClass = msg.agent_id === 'agent-1' ? 'agent-1' : 'agent-2';
-                    const agentName = msg.agent_id === 'agent-1' ? 'Agent 1' : 'Agent 2';
+                    const agentName = msg.agent_name || msg.agent_id;
                     const time = new Date(msg.created_at).toLocaleString('zh-CN');
                     
                     return `
                         <div class="message ${agentClass}">
                             <div class="message-header">
-                                <span class="message-agent">${agentName}</span>
+                                <span class="message-agent">${this.escapeHtml(agentName)}</span>
                                 <span class="message-time">${time}</span>
                             </div>
                             <div class="message-content">${this.escapeHtml(msg.content)}</div>
