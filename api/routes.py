@@ -447,7 +447,8 @@ async def health_check(db: Session = Depends(get_db)):
     # Check database connection
     try:
         # Simple query to test database
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         health_status["services"]["database"] = {
             "status": "healthy",
             "message": "Database connection successful"
