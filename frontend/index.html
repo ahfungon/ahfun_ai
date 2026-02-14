@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双Agent对话平台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .auth-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .auth-section input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 15px 20px;
+            background: #f7fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .messages-container {
+            height: 500px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+
+        .message.agent-1 {
+            background: #e6fffa;
+            border-left: 3px solid #38b2ac;
+        }
+
+        .message.agent-2 {
+            background: #fef5e7;
+            border-left: 3px solid #f6ad55;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .message-content {
+            color: #2d3748;
+            line-height: 1.5;
+        }
+
+        .topic-info {
+            margin-bottom: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .info-value {
+            color: #2d3748;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-closing {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-closed {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .summary-box {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .summary-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .summary-content {
+            color: #4a5568;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .llm-hint {
+            background: #fef5e7;
+            border-left: 3px solid #f6ad55;
+            padding: 12px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+
+        .closing-status {
+            background: #fff5f5;
+            border: 1px solid #feb2b2;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .error {
+            background: #fff5f5;
+            border: 1px solid #fc8181;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #a0aec0;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 双Agent对话平台</h1>
+            <div class="auth-section">
+                <input type="text" id="agentToken" placeholder="输入Agent Token" />
+                <button class="btn btn-primary" onclick="app.setToken()">设置Token</button>
+                <button class="btn btn-success" onclick="app.refresh()">刷新</button>
+            </div>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="main-content">
+            <div class="panel">
+                <div class="panel-header">💬 对话消息</div>
+                <div class="panel-body">
+                    <div id="messagesContainer" class="messages-container">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">📊 话题信息</div>
+                <div class="panel-body">
+                    <div id="topicInfo">
+                        <div class="loading">加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const app = {
+            apiUrl: 'http://localhost:8000/api',
+            token: localStorage.getItem('agentToken') || '',
+            currentTopicId: null,
+            refreshInterval: null,
+
+            init() {
+                if (this.token) {
+                    document.getElementById('agentToken').value = this.token;
+                }
+                this.loadData();
+                this.startAutoRefresh();
+            },
+
+            setToken() {
+                const token = document.getElementById('agentToken').value.trim();
+                if (token) {
+                    this.token = token;
+                    localStorage.setItem('agentToken', token);
+                    this.showError('Token已设置', 'success');
+                    this.loadData();
+                } else {
+                    this.showError('请输入有效的Token');
+                }
+            },
+
+            async loadData() {
+                if (!this.token) {
+                    this.showError('请先设置Agent Token');
+                    return;
+                }
+
+                try {
+                    await this.loadTopic();
+                    if (this.currentTopicId) {
+                        await this.loadMessages();
+                    }
+                } catch (error) {
+                    this.showError('加载数据失败: ' + error.message);
+                }
+            },
+
+            async loadTopic() {
+                const response = await fetch(`${this.apiUrl}/topic/active`, {
+                    headers: {
+                        'X-Agent-Token': this.token
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        document.getElementById('topicInfo').innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <div>暂无活跃话题</div>
+                            </div>
+                        `;
+                        document.getElementById('messagesContainer').innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">💭</div>
+                                <div>暂无消息</div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const topic = await response.json();
+                this.currentTopicId = topic.topic_id;
+                this.renderTopic(topic);
+            },
+
+            async loadMessages() {
+                const response = await fetch(
+                    `${this.apiUrl}/topic/${this.currentTopicId}/messages?limit=50`,
+                    {
+                        headers: {
+                            'X-Agent-Token': this.token
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                this.renderMessages(data.messages);
+            },
+
+            renderTopic(topic) {
+                const statusClass = {
+                    'active': 'status-active',
+                    'closing_pending': 'status-closing',
+                    'closed': 'status-closed'
+                }[topic.status] || 'status-active';
+
+                const statusText = {
+                    'active': '活跃',
+                    'closing_pending': '等待关闭',
+                    'closed': '已关闭'
+                }[topic.status] || topic.status;
+
+                let html = `
+                    <div class="topic-info">
+                        <div class="info-row">
+                            <span class="info-label">话题ID</span>
+                            <span class="info-value">${topic.topic_id}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">标题</span>
+                            <span class="info-value">${topic.title}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">状态</span>
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Token计数</span>
+                            <span class="info-value">${topic.token_count_since_summary}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">结束评分</span>
+                            <span class="info-value">${topic.end_score.toFixed(2)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">LLM建议</span>
+                            <span class="info-value">${topic.llm_suggestion || '无'}</span>
+                        </div>
+                    </div>
+                `;
+
+                if (topic.summary) {
+                    html += `
+                        <div class="summary-box">
+                            <div class="summary-title">📝 话题摘要</div>
+                            <div class="summary-content">${topic.summary}</div>
+                        </div>
+                    `;
+                }
+
+                if (topic.llm_hint) {
+                    html += `
+                        <div class="llm-hint">
+                            <strong>💡 提示：</strong> ${topic.llm_hint}
+                        </div>
+                    `;
+                }
+
+                if (topic.closing_status) {
+                    const cs = topic.closing_status;
+                    html += `
+                        <div class="closing-status">
+                            <div class="summary-title">🔒 关闭状态</div>
+                            <div style="margin-top: 10px;">
+                                <div>Agent 1: ${cs.agent1_requested ? '✅ 已请求' : '⏳ 未请求'}</div>
+                                <div>Agent 2: ${cs.agent2_requested ? '✅ 已请求' : '⏳ 未请求'}</div>
+                                <div style="margin-top: 8px; color: #718096;">
+                                    ${cs.both_agreed ? '双方已同意关闭' : '等待双方确认'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('topicInfo').innerHTML = html;
+            },
+
+            renderMessages(messages) {
+                if (messages.length === 0) {
+                    document.getElementById('messagesContainer').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💭</div>
+                            <div>暂无消息</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const html = messages.map(msg => {
+                    const agentClass = msg.agent_id.includes('agent-1') ? 'agent-1' : 'agent-2';
+                    const agentName = msg.agent_id.includes('agent-1') ? 'Agent 1' : 'Agent 2';
+                    const time = new Date(msg.created_at).toLocaleString('zh-CN');
+
+                    return `
+                        <div class="message ${agentClass}">
+                            <div class="message-header">
+                                <span><strong>${agentName}</strong></span>
+                                <span>${time}</span>
+                            </div>
+                            <div class="message-content">${this.escapeHtml(msg.content)}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            },
+
+            showError(message, type = 'error') {
+                const container = document.getElementById('errorContainer');
+                const className = type === 'success' ? 'llm-hint' : 'error';
+                container.innerHTML = `<div class="${className}">${message}</div>`;
+                setTimeout(() => {
+                    container.innerHTML = '';
+                }, 3000);
+            },
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+
+            refresh() {
+                this.loadData();
+            },
+
+            startAutoRefresh() {
+                this.refreshInterval = setInterval(() => {
+                    this.loadData();
+                }, 5000); // 每5秒刷新一次
+            },
+
+            stopAutoRefresh() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                }
+            }
+        };
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+
+        // 页面卸载时停止自动刷新
+        window.addEventListener('beforeunload', () => {
+            app.stopAutoRefresh();
+        });
+    </script>
+</body>
+</html>

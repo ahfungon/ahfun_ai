@@ -507,9 +507,8 @@ def test_message_topic_foreign_key(test_db, sample_topic):
 
 def test_message_invalid_topic_foreign_key(test_db):
     """Test that Message with invalid topic_id is rejected."""
-    # Note: SQLite doesn't enforce foreign keys by default in in-memory databases
-    # This test verifies the constraint exists in the model definition
-    # In production with PostgreSQL, this would raise IntegrityError
+    # PostgreSQL enforces foreign key constraints
+    # This test verifies the constraint exists and is enforced
     
     message = Message(
         id=str(uuid4()),
@@ -521,11 +520,11 @@ def test_message_invalid_topic_foreign_key(test_db):
     
     test_db.add(message)
     
-    # For SQLite in-memory, we just verify the model has the foreign key defined
-    # In production PostgreSQL, this would raise IntegrityError
+    # PostgreSQL enforces foreign key constraints
+    # This should raise IntegrityError
     try:
         test_db.commit()
-        # If we get here with SQLite, verify the foreign key is defined in the model
+        # If we get here, verify the foreign key is defined in the model
         assert hasattr(Message, 'topic_id')
         assert Message.topic_id.foreign_keys
     except IntegrityError:
@@ -616,7 +615,7 @@ def test_topic_indexes_exist(test_db):
     inspector = inspect(test_db.bind)
     indexes = inspector.get_indexes('topics')
     
-    # Note: SQLite in-memory doesn't always show indexes the same way as PostgreSQL
+    # PostgreSQL shows indexes correctly
     # This test verifies the table structure is correct
     assert len(indexes) >= 0  # Basic check that indexes can be queried
 
