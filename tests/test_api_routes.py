@@ -4,31 +4,40 @@ import bcrypt
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from main import app
 from models.database import Base, get_db
 from models.models import Agent, Topic, Message
 
 
+# Create a shared test engine with StaticPool for thread safety
+TEST_ENGINE = create_engine(
+    "sqlite:///:memory:",
+    echo=False,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool  # Use StaticPool to share connection across threads
+)
+
+# Create tables once
+Base.metadata.create_all(TEST_ENGINE)
+
+
 # Test database setup
 @pytest.fixture(scope="function")
 def test_db():
     """Create a test database for each test function."""
-    # Use check_same_thread=False for SQLite to work with FastAPI TestClient
-    engine = create_engine(
-        "sqlite:///:memory:",
-        echo=False,
-        connect_args={"check_same_thread": False}
-    )
-    Base.metadata.create_all(engine)
-    
-    TestSessionLocal = sessionmaker(bind=engine)
+    TestSessionLocal = sessionmaker(bind=TEST_ENGINE, autocommit=False, autoflush=False)
     session = TestSessionLocal()
     
     yield session
     
+    # Clean up data after test
+    session.rollback()
+    for table in reversed(Base.metadata.sorted_tables):
+        session.execute(table.delete())
+    session.commit()
     session.close()
-    Base.metadata.drop_all(engine)
 
 
 @pytest.fixture(scope="function")
