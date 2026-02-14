@@ -65,13 +65,26 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
-    return {
-        "message": "Dual Agent Chat Platform API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "api_docs": "/api-docs"
-    }
+    """Root endpoint - serve main chat interface."""
+    return FileResponse("frontend/index.html")
+
+
+@app.get("/index.html")
+async def index():
+    """Serve chat interface."""
+    return FileResponse("frontend/index.html")
+
+
+@app.get("/admin.html")
+async def admin():
+    """Serve admin interface."""
+    return FileResponse("frontend/admin.html")
+
+
+@app.get("/auth-info.html")
+async def auth_info():
+    """Serve authentication information page."""
+    return FileResponse("frontend/auth-info.html")
 
 
 @app.get("/api-docs")
