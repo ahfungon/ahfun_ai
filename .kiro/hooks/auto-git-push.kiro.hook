@@ -7,9 +7,8 @@
     "type": "agentStop"
   },
   "then": {
-    "type": "runCommand",
-    "command": "git add -A && git commit -m \"Auto commit: Task completed by Kiro\" && git push",
-    "timeout": 30
+    "type": "askAgent",
+    "prompt": "请根据刚才完成的任务，生成一个简洁明确的 git 提交信息（中文，不超过50字），然后执行以下命令提交并推送代码：git add -A && git commit -m \"[你生成的提交信息]\" && git push。请确保提交信息准确描述了完成的具体任务。"
   },
   "workspaceFolderName": "ahfun_ai",
   "shortName": "auto-git-push"
