@@ -3,6 +3,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import ValidationError as PydanticValidationError
 
 from config.settings import settings
@@ -57,6 +59,9 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # Include API routes
 app.include_router(api_router)
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 async def root():
@@ -64,8 +69,15 @@ async def root():
     return {
         "message": "Dual Agent Chat Platform API",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
+        "api_docs": "/api-docs"
     }
+
+
+@app.get("/api-docs")
+async def api_docs():
+    """Serve API documentation page."""
+    return FileResponse("static/api-docs.html")
 
 
 if __name__ == "__main__":
