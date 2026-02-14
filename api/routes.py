@@ -11,6 +11,7 @@ from models.models import Agent
 from services.topic_service import TopicService
 from services.message_service import MessageService
 from services.summary_service import SummaryService
+from services.audit_log_service import AuditLogService
 
 
 # Create API router
@@ -388,11 +389,25 @@ async def rollback_summary(
     
     Returns:
         Success message
+        
+    Validates:
+        Requirements 11.5, 11.6
     """
     summary_service = SummaryService(db)
+    audit_service = AuditLogService(db)
     
     try:
         summary_service.rollback_summary(topic_id, request.history_id)
+        
+        # Record audit log for rollback operation
+        audit_service.record(
+            operation_type=AuditLogService.OPERATION_SUMMARY_ROLLED_BACK,
+            topic_id=topic_id,
+            agent_id=agent.id,
+            details={
+                "history_id": request.history_id
+            }
+        )
         
         return {"status": "success", "message": "Summary rolled back successfully"}
     

@@ -516,6 +516,117 @@ class TestIgnoreSuggestionsInClosingPending:
         assert topic.status == "closing_pending"  # Status unchanged
 
 
+class TestClosingRequestTimestamp:
+    """Test that closing requests record timestamp correctly."""
+    
+    def test_closing_request_records_timestamp(
+        self,
+        test_db: Session
+    ):
+        """
+        Test that record_close_request records closing_requested_at timestamp.
+        
+        Feature: dual-agent-chat, Property 38: 关闭请求记录时间
+        Validates Requirement 8.2
+        """
+        from services.topic_service import TopicService
+        
+        # Create topic
+        topic_service = TopicService(test_db)
+        topic = topic_service.create_topic(title="Test Topic")
+        
+        # Record time before request
+        time_before = datetime.utcnow()
+        
+        # Record close request
+        topic_service.record_close_request(topic.id, "agent_a")
+        
+        # Record time after request
+        time_after = datetime.utcnow()
+        
+        # Verify timestamp was recorded
+        test_db.refresh(topic)
+        assert topic.closing_requested_at is not None
+        assert topic.closing_requested_by == "agent_a"
+        
+        # Verify timestamp is within reasonable range
+        assert time_before <= topic.closing_requested_at <= time_after
+    
+    def test_closing_status_includes_timestamp(
+        self,
+        test_client: TestClient,
+        test_db: Session,
+        test_agent: Agent,
+        auth_headers: dict
+    ):
+        """
+        Test that closing status API includes closing_requested_at.
+        
+        Feature: dual-agent-chat, Property 38: 关闭请求记录时间
+        Validates Requirement 8.10
+        """
+        from services.topic_service import TopicService
+        
+        # Create topic and record close request
+        topic_service = TopicService(test_db)
+        topic = topic_service.create_topic(title="Test Topic")
+        topic_service.record_close_request(topic.id, "agent_a")
+        
+        # Get active topic via API
+        response = test_client.get("/api/topic/active", headers=auth_headers)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify closing_status includes timestamp
+        assert data["status"] == "closing_pending"
+        assert data["closing_status"] is not None
+        assert "closing_requested_at" in data["closing_status"]
+        assert data["closing_status"]["closing_requested_at"] is not None
+        assert data["closing_status"]["closing_requested_by"] == "agent_a"
+    
+    def test_force_end_records_system_timestamp(
+        self,
+        test_db: Session
+    ):
+        """
+        Test that force_end records closing_requested_at with system as requester.
+        
+        Feature: dual-agent-chat, Property 38: 关闭请求记录时间
+        Validates Requirement 7.5, 8.2
+        """
+        from services.summary_service import SummaryService
+        
+        # Create topic
+        topic = Topic(
+            id=str(uuid.uuid4()),
+            title="Test Topic",
+            status="active",
+            summary="Test summary",
+            llm_suggestion="continue",
+            end_score=20.0,
+            token_count_since_summary=0
+        )
+        test_db.add(topic)
+        test_db.commit()
+        
+        # Record time before applying force_end
+        time_before = datetime.utcnow()
+        
+        # Apply force_end
+        summary_service = SummaryService(test_db)
+        summary_service.apply_llm_suggestion(topic, "force_end")
+        
+        # Record time after
+        time_after = datetime.utcnow()
+        
+        # Verify timestamp was recorded
+        test_db.refresh(topic)
+        assert topic.closing_requested_at is not None
+        assert topic.closing_requested_by == "system"
+        assert time_before <= topic.closing_requested_at <= time_after
+
+
 class TestCrossModuleIntegration:
     """Test integration across SummaryService, Worker, and API routes."""
     

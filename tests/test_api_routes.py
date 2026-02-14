@@ -841,7 +841,7 @@ class TestSummaryHistoryIntegration:
     
     def test_summary_rollback(self, client, auth_headers, test_topic, test_db):
         """Test rolling back summary to a previous version."""
-        from models.models import SummaryHistory
+        from models.models import SummaryHistory, AuditLog
         
         # Create a history record
         history = SummaryHistory(
@@ -869,6 +869,21 @@ class TestSummaryHistoryIntegration:
         assert test_topic.summary == "Previous summary version"
         assert test_topic.llm_suggestion == "change_angle"
         assert test_topic.end_score == 75.0
+        
+        # Verify audit log was recorded (Requirement 11.6)
+        audit_logs = test_db.query(AuditLog).filter(
+            AuditLog.operation_type == "summary_rolled_back",
+            AuditLog.topic_id == test_topic.id
+        ).all()
+        
+        assert len(audit_logs) > 0
+        latest_log = audit_logs[-1]
+        assert latest_log.agent_id == "agent_test"  # Fixed: correct agent_id
+        assert latest_log.details is not None
+        
+        import json
+        details = json.loads(latest_log.details)
+        assert details["history_id"] == "history_rollback"
 
 
 class TestConcurrentOperations:
