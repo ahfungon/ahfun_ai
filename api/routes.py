@@ -477,7 +477,10 @@ async def health_check(db: Session = Depends(get_db)):
     
     # Check OpenClaw LLM service
     try:
-        openclaw_client = OpenClawClient()
+        openclaw_client = OpenClawClient(
+            api_key=settings.openclaw_api_key,
+            api_url=settings.openclaw_api_url
+        )
         # We don't actually call the API, just check if client can be initialized
         health_status["services"]["openclaw"] = {
             "status": "healthy",
@@ -492,7 +495,10 @@ async def health_check(db: Session = Depends(get_db)):
     
     # Check DeepSeek LLM service
     try:
-        deepseek_client = DeepSeekClient()
+        deepseek_client = DeepSeekClient(
+            api_key=settings.deepseek_api_key,
+            api_url=settings.deepseek_api_url
+        )
         # We don't actually call the API, just check if client can be initialized
         health_status["services"]["deepseek"] = {
             "status": "healthy",
