@@ -2,9 +2,30 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError as PydanticValidationError
 
 from config.settings import settings
+from utils.logging_config import setup_logging
+
+# Initialize structured logging
+setup_logging(log_level="INFO")
 from api.routes import router as api_router
+from api.exceptions import (
+    AuthenticationError,
+    ValidationError,
+    NotFoundError,
+    LLMServiceError
+)
+from api.error_handlers import (
+    authentication_error_handler,
+    validation_error_handler,
+    request_validation_error_handler,
+    pydantic_validation_error_handler,
+    not_found_error_handler,
+    llm_service_error_handler,
+    generic_exception_handler
+)
 
 # Create FastAPI application
 app = FastAPI(
@@ -23,6 +44,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register global exception handlers
+app.add_exception_handler(AuthenticationError, authentication_error_handler)
+app.add_exception_handler(ValidationError, validation_error_handler)
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+app.add_exception_handler(PydanticValidationError, pydantic_validation_error_handler)
+app.add_exception_handler(NotFoundError, not_found_error_handler)
+app.add_exception_handler(LLMServiceError, llm_service_error_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # Include API routes
 app.include_router(api_router)

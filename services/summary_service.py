@@ -1,12 +1,18 @@
 """Summary service for generating and managing conversation summaries."""
 import uuid
 import json
+import logging
+import time
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from models.models import Topic, Message, SummaryHistory
 from config.settings import settings
+from utils.logging_config import log_llm_call, log_error_with_context
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class SummaryResult:
@@ -45,36 +51,71 @@ class SummaryService:
     ) -> SummaryResult:
         """
         Generate a new cumulative summary using DeepSeek API.
-        
+
         This method constructs a prompt with the old summary and new messages,
         calls the DeepSeek LLM, and parses the response to extract the summary,
-        suggestion, and end score.
-        
+        suggestion, and end_score.
+
         Args:
             topic: Topic object containing old summary
             new_messages: List of new messages since last summary
-        
+
         Returns:
             SummaryResult containing summary, suggestion, and end_score
-        
+
         Raises:
             Exception: If LLM API call fails
         """
         # Build prompt for DeepSeek
         prompt = self._build_summary_prompt(topic.summary, new_messages)
-        
-        # Call DeepSeek API (to be implemented with actual API integration)
-        # For now, this is a placeholder that will be replaced with actual LLM call
-        llm_response = self._call_deepseek_api(prompt)
-        
+
+        # Prepare request parameters for logging
+        request_params = {
+            "topic_id": topic.id,
+            "old_summary_length": len(topic.summary) if topic.summary else 0,
+            "new_messages_count": len(new_messages),
+            "prompt_length": len(prompt)
+        }
+
+        # Call DeepSeek API with timing and logging
+        start_time = time.time()
+        try:
+            llm_response = self._call_deepseek_api(prompt)
+            duration_ms = (time.time() - start_time) * 1000
+
+            # Log successful LLM call
+            log_llm_call(
+                logger,
+                provider="DeepSeek",
+                operation="generate_summary",
+                request_params=request_params,
+                response=llm_response,
+                duration_ms=duration_ms
+            )
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+
+            # Log failed LLM call
+            log_llm_call(
+                logger,
+                provider="DeepSeek",
+                operation="generate_summary",
+                request_params=request_params,
+                error=e,
+                duration_ms=duration_ms
+            )
+            raise
+
         # Parse LLM response
         summary, suggestion, end_score = self._parse_llm_response(llm_response)
-        
+
         return SummaryResult(
             summary=summary,
             suggestion=suggestion,
             end_score=end_score
         )
+
     
     def update_topic_summary(
         self,

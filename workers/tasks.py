@@ -12,6 +12,7 @@ from models.models import SummaryJob, Topic, Message
 from services.summary_service import SummaryService
 from services.topic_service import TopicService
 from config.settings import settings
+from utils.logging_config import log_retry_attempt, log_error_with_context
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -48,7 +49,12 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
         # 1. Get the job
         job = db.query(SummaryJob).filter(SummaryJob.id == job_id).first()
         if not job:
-            logger.error(f"Summary job {job_id} not found")
+            log_error_with_context(
+                logger,
+                ValueError(f"Summary job {job_id} not found"),
+                {"job_id": job_id},
+                f"Summary job {job_id} not found"
+            )
             return
         
         # Update job status to processing
@@ -57,7 +63,14 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
         
         logger.info(
             f"Processing summary job {job_id} for topic {job.topic_id} "
-            f"(retry {job.retry_count}/{settings.max_retries})"
+            f"(retry {job.retry_count}/{settings.max_retries})",
+            extra={
+                "event_type": "job_processing",
+                "job_id": job_id,
+                "topic_id": job.topic_id,
+                "retry_count": job.retry_count,
+                "max_retries": settings.max_retries
+            }
         )
         
         # 2. Acquire row lock on topic (SELECT FOR UPDATE)
@@ -67,9 +80,18 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
         ).with_for_update().first()
         
         if not topic:
-            logger.error(f"Topic {job.topic_id} not found for job {job_id}")
+            error_msg = f"Topic {job.topic_id} not found"
+            log_error_with_context(
+                logger,
+                ValueError(error_msg),
+                {
+                    "job_id": job_id,
+                    "topic_id": job.topic_id
+                },
+                error_msg
+            )
             job.status = "failed"
-            job.error_message = f"Topic {job.topic_id} not found"
+            job.error_message = error_msg
             db.commit()
             return
         
@@ -81,14 +103,29 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
         )
         
         if not new_messages:
-            logger.warning(f"No new messages found for job {job_id}")
+            logger.warning(
+                f"No new messages found for job {job_id}",
+                extra={
+                    "event_type": "no_messages",
+                    "job_id": job_id,
+                    "topic_id": job.topic_id
+                }
+            )
             # Still mark as done, but don't update summary
             job.status = "done"
             topic.pending_summary_job = False
             db.commit()
             return
         
-        logger.info(f"Found {len(new_messages)} new messages for job {job_id}")
+        logger.info(
+            f"Found {len(new_messages)} new messages for job {job_id}",
+            extra={
+                "event_type": "messages_found",
+                "job_id": job_id,
+                "topic_id": job.topic_id,
+                "message_count": len(new_messages)
+            }
+        )
         
         # 4. Initialize services
         summary_service = SummaryService(db)
@@ -100,7 +137,14 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
             
             logger.info(
                 f"Generated summary for job {job_id}: "
-                f"suggestion={result.suggestion}, end_score={result.end_score}"
+                f"suggestion={result.suggestion}, end_score={result.end_score}",
+                extra={
+                    "event_type": "summary_generated",
+                    "job_id": job_id,
+                    "topic_id": job.topic_id,
+                    "suggestion": result.suggestion,
+                    "end_score": result.end_score
+                }
             )
             
             # 6. Save summary history
@@ -133,7 +177,16 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
             # Commit all changes
             db.commit()
             
-            logger.info(f"Successfully completed summary job {job_id}")
+            logger.info(
+                f"Successfully completed summary job {job_id}",
+                extra={
+                    "event_type": "job_completed",
+                    "job_id": job_id,
+                    "topic_id": job.topic_id,
+                    "suggestion": result.suggestion,
+                    "end_score": result.end_score
+                }
+            )
             
         except Exception as llm_error:
             # LLM call failed - implement retry mechanism with exponential backoff
@@ -144,17 +197,19 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
             job.retry_count += 1
             job.error_message = error_msg
             
-            # Log detailed error information
-            logger.error(
-                f"LLM call failed for summary job {job_id} (attempt {job.retry_count}/{settings.max_retries}): {error_msg}",
-                extra={
+            # Log detailed error information with structured data
+            log_error_with_context(
+                logger,
+                llm_error,
+                {
+                    "event_type": "llm_failure",
                     "job_id": job_id,
                     "topic_id": job.topic_id,
                     "retry_count": job.retry_count,
                     "max_retries": settings.max_retries,
-                    "error": error_msg,
                     "traceback": error_trace
-                }
+                },
+                f"LLM call failed for summary job {job_id} (attempt {job.retry_count}/{settings.max_retries})"
             )
             
             # Check if we've exceeded max retries
@@ -163,9 +218,14 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
                 job.status = "failed"
                 topic.pending_summary_job = False
                 
-                logger.error(
-                    f"Summary job {job_id} failed after {job.retry_count} retries. "
-                    f"Releasing pending_summary_job flag for topic {job.topic_id}."
+                log_retry_attempt(
+                    logger,
+                    job_id=job_id,
+                    topic_id=job.topic_id,
+                    retry_count=job.retry_count,
+                    max_retries=settings.max_retries,
+                    error=error_msg,
+                    next_delay=None
                 )
                 
                 db.commit()
@@ -180,9 +240,14 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
                 delay_index = min(job.retry_count - 1, len(retry_delays) - 1)
                 delay = retry_delays[delay_index]
                 
-                logger.info(
-                    f"Retrying summary job {job_id} in {delay} seconds "
-                    f"(attempt {job.retry_count + 1}/{settings.max_retries})"
+                log_retry_attempt(
+                    logger,
+                    job_id=job_id,
+                    topic_id=job.topic_id,
+                    retry_count=job.retry_count,
+                    max_retries=settings.max_retries,
+                    error=error_msg,
+                    next_delay=delay
                 )
                 
                 # Wait for exponential backoff delay
@@ -197,13 +262,15 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
         error_msg = str(e)
         error_trace = traceback.format_exc()
         
-        logger.error(
-            f"Unexpected error in summary job {job_id}: {error_msg}",
-            extra={
+        log_error_with_context(
+            logger,
+            e,
+            {
+                "event_type": "unexpected_error",
                 "job_id": job_id,
-                "error": error_msg,
                 "traceback": error_trace
-            }
+            },
+            f"Unexpected error in summary job {job_id}"
         )
         
         # Update job with error information
@@ -261,11 +328,111 @@ def _get_messages_since(
 
 
 @celery_app.task(name="workers.tasks.check_closing_timeouts")
-def check_closing_timeouts():
+def check_closing_timeouts(db_session: Optional[Session] = None):
     """
     Periodic task to check for closing_pending topics that have timed out.
     
-    This task will be implemented in later tasks.
+    This task runs every minute and:
+    1. Queries all topics with status=closing_pending
+    2. Checks if closing_requested_at + timeout > now
+    3. Automatically closes timed-out topics
+    4. Records audit log for each timeout closure
+    
+    Args:
+        db_session: Optional database session (for testing)
+    
+    Validates:
+        Requirements 8.7
     """
-    # Implementation will be added in Task 13
-    pass
+    # Use provided session or create new one
+    db: Session = db_session if db_session else SessionLocal()
+    should_close_db = db_session is None  # Only close if we created it
+    
+    try:
+        logger.info(
+            "Starting closing timeout check",
+            extra={
+                "event_type": "timeout_check_started"
+            }
+        )
+        
+        # Initialize services
+        topic_service = TopicService(db)
+        
+        # Import AuditLogService here to avoid circular imports
+        from services.audit_log_service import AuditLogService
+        audit_log_service = AuditLogService(db)
+        
+        # Check for timed-out topics
+        closed_topic_ids = topic_service.check_closing_timeout()
+        
+        # Record audit log for each closed topic
+        for topic_id in closed_topic_ids:
+            audit_log_service.record(
+                operation_type=audit_log_service.OPERATION_STATUS_CHANGED,
+                topic_id=topic_id,
+                agent_id=None,  # System action, no specific agent
+                details={
+                    "reason": "closing_timeout",
+                    "old_status": "closing_pending",
+                    "new_status": "closed",
+                    "timeout_seconds": settings.closing_timeout
+                }
+            )
+            
+            logger.info(
+                f"Topic {topic_id} closed due to timeout",
+                extra={
+                    "event_type": "topic_timeout_closed",
+                    "topic_id": topic_id,
+                    "timeout_seconds": settings.closing_timeout
+                }
+            )
+        
+        if closed_topic_ids:
+            logger.info(
+                f"Closed {len(closed_topic_ids)} topics due to timeout",
+                extra={
+                    "event_type": "timeout_check_completed",
+                    "closed_count": len(closed_topic_ids),
+                    "closed_topic_ids": closed_topic_ids
+                }
+            )
+        else:
+            logger.debug(
+                "No topics timed out",
+                extra={
+                    "event_type": "timeout_check_completed",
+                    "closed_count": 0
+                }
+            )
+        
+        return {
+            "closed_count": len(closed_topic_ids),
+            "closed_topic_ids": closed_topic_ids
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        error_trace = traceback.format_exc()
+        
+        log_error_with_context(
+            logger,
+            e,
+            {
+                "event_type": "timeout_check_error",
+                "traceback": error_trace
+            },
+            "Error checking closing timeouts"
+        )
+        
+        # Don't re-raise - log and continue
+        return {
+            "error": error_msg,
+            "closed_count": 0,
+            "closed_topic_ids": []
+        }
+        
+    finally:
+        if should_close_db:
+            db.close()

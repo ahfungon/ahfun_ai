@@ -1,6 +1,9 @@
 """Celery application configuration."""
 from celery import Celery
+from celery.signals import worker_process_init
 from config.settings import settings
+from utils.logging_config import setup_logging
+from workers.celery_beat_config import beat_schedule
 
 # Create Celery application
 celery_app = Celery(
@@ -9,6 +12,12 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
     include=["workers.tasks"]
 )
+
+# Initialize structured logging for Celery workers
+@worker_process_init.connect
+def init_worker_logging(**kwargs):
+    """Initialize structured logging when worker process starts."""
+    setup_logging(log_level="INFO")
 
 # Configure Celery
 celery_app.conf.update(
@@ -29,6 +38,8 @@ celery_app.conf.update(
     },
     # Default queue
     task_default_queue="default",
+    # Periodic task schedule
+    beat_schedule=beat_schedule,
 )
 
 # Set concurrency limit (maximum 5 concurrent tasks as per requirements)
