@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from models.models import Message, Topic
+from models.database import transaction, atomic_update
 from config.settings import settings
 from workers.celery_app import celery_app
 
@@ -32,6 +33,11 @@ class MessageService:
         """
         Create and store a new message, update token count, and trigger summary job if needed.
         
+        Uses database transactions to ensure atomicity of:
+        - Message creation
+        - Token count update
+        - Summary job trigger flag
+        
         Args:
             topic_id: ID of the topic
             agent_id: ID of the agent sending the message
@@ -43,43 +49,60 @@ class MessageService:
         
         Raises:
             ValueError: If topic not found or topic is closed
+            
+        Validates:
+            Requirements 5.1, 5.2, 5.3, 5.4, 10.1, 10.2, 10.3
         """
-        # Verify topic exists and is not closed
-        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
-        if not topic:
-            raise ValueError(f"Topic {topic_id} not found")
-        
-        if topic.status == "closed":
-            raise ValueError(f"Cannot post message to closed topic {topic_id}")
-        
-        # Create message
-        message = Message(
-            id=str(uuid.uuid4()),
-            topic_id=topic_id,
-            agent_id=agent_id,
-            content=content,
-            actual_tokens=actual_tokens,
-            created_at=datetime.utcnow()
-        )
-        
-        self.db.add(message)
-        
-        # Update token count atomically
-        new_token_count = self.increment_token_count(topic_id, actual_tokens)
-        
-        # Check if we need to trigger a summary job
-        threshold = topic.summary_threshold if topic.summary_threshold else settings.summary_threshold
-        
-        if new_token_count >= threshold and not topic.pending_summary_job:
-            # Mark that a summary job is pending
-            topic.pending_summary_job = True
+        # Use atomic transaction for entire operation
+        with transaction(self.db):
+            # Verify topic exists and is not closed (with row lock)
+            topic = self.db.query(Topic).filter(
+                Topic.id == topic_id
+            ).with_for_update().first()
+            
+            if not topic:
+                raise ValueError(f"Topic {topic_id} not found")
+            
+            if topic.status == "closed":
+                raise ValueError(f"Cannot post message to closed topic {topic_id}")
+            
+            # Create message
+            message = Message(
+                id=str(uuid.uuid4()),
+                topic_id=topic_id,
+                agent_id=agent_id,
+                content=content,
+                actual_tokens=actual_tokens,
+                created_at=datetime.utcnow()
+            )
+            
+            self.db.add(message)
+            
+            # Atomically update token count
+            topic.token_count_since_summary += actual_tokens
             topic.updated_at = datetime.utcnow()
+            new_token_count = topic.token_count_since_summary
             
-            # Commit the message and pending flag first
-            self.db.commit()
+            # Check if we need to trigger a summary job
+            threshold = topic.summary_threshold if topic.summary_threshold else settings.summary_threshold
             
-            # Trigger Celery task asynchronously
-            # Note: We use QueueService pattern but trigger directly to avoid circular dependency
+            should_trigger_summary = (
+                new_token_count >= threshold and 
+                not topic.pending_summary_job
+            )
+            
+            if should_trigger_summary:
+                # Mark that a summary job is pending
+                topic.pending_summary_job = True
+                topic.updated_at = datetime.utcnow()
+            
+            # Transaction commits here automatically
+        
+        # Refresh message to get committed state
+        self.db.refresh(message)
+        
+        # Trigger summary job outside transaction (async operation)
+        if should_trigger_summary:
             from services.queue_service import QueueService
             queue_service = QueueService(self.db)
             queue_service.enqueue_summary_job(
@@ -87,11 +110,6 @@ class MessageService:
                 start_message_id=topic.last_summarized_message_id,
                 end_message_id=message.id
             )
-        else:
-            # Commit message without triggering summary
-            self.db.commit()
-        
-        self.db.refresh(message)
         
         return message
     
@@ -118,8 +136,11 @@ class MessageService:
         """
         Atomically increment the token count for a topic.
         
-        This method uses database transactions to ensure atomic updates
-        and prevent race conditions in concurrent scenarios.
+        This method uses database transactions with row-level locking
+        to ensure atomic updates and prevent race conditions in concurrent scenarios.
+        
+        Note: This method is now primarily used internally by create_message.
+        The transaction and locking are handled at the create_message level.
         
         Args:
             topic_id: ID of the topic
@@ -130,16 +151,14 @@ class MessageService:
         
         Raises:
             ValueError: If topic not found
+            
+        Validates:
+            Requirements 5.3, 10.1, 10.2, 10.5
         """
-        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
-        if not topic:
-            raise ValueError(f"Topic {topic_id} not found")
+        with atomic_update(self.db, Topic, topic_id) as topic:
+            # Atomically update token count with row lock
+            topic.token_count_since_summary += tokens
+            topic.updated_at = datetime.utcnow()
+            new_count = topic.token_count_since_summary
         
-        # Atomically update token count
-        topic.token_count_since_summary += tokens
-        topic.updated_at = datetime.utcnow()
-        
-        # Note: Commit is handled by the caller (create_message)
-        # to ensure atomicity with message creation
-        
-        return topic.token_count_since_summary
+        return new_count

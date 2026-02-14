@@ -59,6 +59,7 @@ class TopicResponse(BaseModel):
     end_score: float
     token_count_since_summary: int
     closing_status: Optional[dict] = None
+    llm_hint: Optional[str] = None  # Hint message for LLM suggestions
 
 
 class MessageResponse(BaseModel):
@@ -128,6 +129,10 @@ async def get_active_topic(
     Get the current active or closing_pending topic.
     
     Returns topic information including summary, LLM suggestion, and status.
+    Includes hint messages for change_angle and suggest_end suggestions.
+    
+    Validates:
+        Requirements 7.1, 7.2, 7.3, 7.4, 7.8
     """
     topic_service = TopicService(db)
     topic = topic_service.get_active_topic()
@@ -144,6 +149,12 @@ async def get_active_topic(
         closing_detail = topic_service.get_closing_status(topic.id)
         closing_status = closing_detail.to_dict()
     
+    # Generate hint message based on LLM suggestion
+    # When in closing_pending, don't provide new hints (Requirement 7.8)
+    llm_hint = None
+    if topic.status != "closing_pending" and topic.llm_suggestion:
+        llm_hint = _get_llm_hint(topic.llm_suggestion)
+    
     return TopicResponse(
         topic_id=topic.id,
         title=topic.title,
@@ -152,8 +163,31 @@ async def get_active_topic(
         llm_suggestion=topic.llm_suggestion,
         end_score=topic.end_score,
         token_count_since_summary=topic.token_count_since_summary,
-        closing_status=closing_status
+        closing_status=closing_status,
+        llm_hint=llm_hint
     )
+
+
+def _get_llm_hint(suggestion: str) -> Optional[str]:
+    """
+    Get hint message for LLM suggestion.
+    
+    Args:
+        suggestion: LLM suggestion type
+    
+    Returns:
+        Hint message string or None for continue/force_end
+    
+    Validates:
+        Requirements 7.2, 7.3, 7.4
+    """
+    hints = {
+        "change_angle": "The conversation may benefit from exploring a different perspective or angle.",
+        "suggest_end": "Consider whether the discussion has reached a natural conclusion.",
+        "continue": None,  # No hint for continue
+        "force_end": None  # force_end is handled automatically by system
+    }
+    return hints.get(suggestion)
 
 
 @router.get("/topic/{topic_id}/messages", response_model=MessagesResponse)

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from workers.celery_app import celery_app
-from models.database import SessionLocal
+from models.database import SessionLocal, transaction, atomic_update
 from models.models import SummaryJob, Topic, Message
 from services.summary_service import SummaryService
 from services.topic_service import TopicService
@@ -147,35 +147,47 @@ def process_summary_job(job_id: str, db_session: Optional[Session] = None):
                 }
             )
             
-            # 6. Save summary history
-            summary_service.save_summary_history(
-                topic_id=job.topic_id,
-                summary=result.summary,
-                suggestion=result.suggestion,
-                end_score=result.end_score
-            )
-            
-            # 7. Update topic with new summary, suggestion, end_score
-            summary_service.update_topic_summary(
-                topic_id=job.topic_id,
-                summary=result.summary,
-                suggestion=result.suggestion,
-                end_score=result.end_score
-            )
-            
-            # 8. Apply LLM suggestion (force_end logic)
-            summary_service.apply_llm_suggestion(topic, result.suggestion)
-            
-            # 9. Update topic state
-            topic.last_summarized_message_id = job.end_message_id
-            topic.token_count_since_summary = 0
-            topic.pending_summary_job = False
-            
-            # 10. Mark job as done
-            job.status = "done"
-            
-            # Commit all changes
-            db.commit()
+            # Wrap all database updates in a single transaction for atomicity
+            with transaction(db):
+                # 6. Save summary history
+                summary_service.save_summary_history(
+                    topic_id=job.topic_id,
+                    summary=result.summary,
+                    suggestion=result.suggestion,
+                    end_score=result.end_score
+                )
+                
+                # 7. Update topic with new summary, suggestion, end_score
+                # Only update suggestion if not in closing_pending (Requirement 7.8)
+                if topic.status != "closing_pending":
+                    summary_service.update_topic_summary(
+                        topic_id=job.topic_id,
+                        summary=result.summary,
+                        suggestion=result.suggestion,
+                        end_score=result.end_score
+                    )
+                else:
+                    # In closing_pending, only update summary but keep old suggestion
+                    summary_service.update_topic_summary(
+                        topic_id=job.topic_id,
+                        summary=result.summary,
+                        suggestion=topic.llm_suggestion,  # Keep existing suggestion
+                        end_score=topic.end_score  # Keep existing end_score
+                    )
+                
+                # 8. Apply LLM suggestion (force_end logic)
+                # This will be ignored if already in closing_pending (Requirement 7.8)
+                summary_service.apply_llm_suggestion(topic, result.suggestion)
+                
+                # 9. Update topic state atomically
+                topic.last_summarized_message_id = job.end_message_id
+                topic.token_count_since_summary = 0
+                topic.pending_summary_job = False
+                
+                # 10. Mark job as done
+                job.status = "done"
+                
+                # Transaction commits here automatically
             
             logger.info(
                 f"Successfully completed summary job {job_id}",

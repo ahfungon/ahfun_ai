@@ -8,8 +8,10 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from models.models import Topic, Message, SummaryHistory
+from models.database import transaction, atomic_update
 from config.settings import settings
 from utils.logging_config import log_llm_call, log_error_with_context
+from services.llm_clients import DeepSeekClient, LLMClientError
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -35,14 +37,27 @@ class SummaryResult:
 class SummaryService:
     """Service for generating and managing conversation summaries."""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, deepseek_client: Optional[DeepSeekClient] = None):
         """
         Initialize SummaryService.
         
         Args:
             db: Database session
+            deepseek_client: DeepSeek client instance (optional, will create default if not provided)
         """
         self.db = db
+        
+        # Initialize DeepSeek client
+        if deepseek_client is None:
+            self.deepseek_client = DeepSeekClient(
+                api_key=settings.deepseek_api_key,
+                api_url=settings.deepseek_api_url,
+                timeout=30,
+                max_retries=3,
+                retry_delays=[1, 2, 4]
+            )
+        else:
+            self.deepseek_client = deepseek_client
     
     def generate_summary(
         self,
@@ -125,7 +140,9 @@ class SummaryService:
         end_score: float
     ) -> None:
         """
-        Update topic's summary, suggestion, and end score.
+        Update topic's summary, suggestion, and end score atomically.
+        
+        Uses database transaction to ensure atomic update of all fields.
         
         Args:
             topic_id: ID of the topic to update
@@ -135,17 +152,15 @@ class SummaryService:
         
         Raises:
             ValueError: If topic not found
+            
+        Validates:
+            Requirements 6.7, 10.1, 10.2, 10.4
         """
-        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
-        if not topic:
-            raise ValueError(f"Topic {topic_id} not found")
-        
-        topic.summary = summary
-        topic.llm_suggestion = suggestion
-        topic.end_score = end_score
-        topic.updated_at = datetime.utcnow()
-        
-        self.db.commit()
+        with atomic_update(self.db, Topic, topic_id) as topic:
+            topic.summary = summary
+            topic.llm_suggestion = suggestion
+            topic.end_score = end_score
+            topic.updated_at = datetime.utcnow()
     
     def save_summary_history(
         self,
@@ -155,7 +170,9 @@ class SummaryService:
         end_score: float
     ) -> SummaryHistory:
         """
-        Save a summary history record.
+        Save a summary history record atomically.
+        
+        Uses database transaction to ensure atomic insert.
         
         Args:
             topic_id: ID of the topic
@@ -165,20 +182,23 @@ class SummaryService:
         
         Returns:
             Created SummaryHistory object
+            
+        Validates:
+            Requirements 11.1, 11.2, 10.1, 10.2
         """
-        history = SummaryHistory(
-            id=str(uuid.uuid4()),
-            topic_id=topic_id,
-            summary=summary,
-            llm_suggestion=suggestion,
-            end_score=end_score,
-            created_at=datetime.utcnow()
-        )
+        with transaction(self.db):
+            history = SummaryHistory(
+                id=str(uuid.uuid4()),
+                topic_id=topic_id,
+                summary=summary,
+                llm_suggestion=suggestion,
+                end_score=end_score,
+                created_at=datetime.utcnow()
+            )
+            
+            self.db.add(history)
         
-        self.db.add(history)
-        self.db.commit()
         self.db.refresh(history)
-        
         return history
     
     def get_summary_history(
@@ -204,11 +224,11 @@ class SummaryService:
     
     def rollback_summary(self, topic_id: str, history_id: str) -> None:
         """
-        Rollback topic summary to a historical version.
+        Rollback topic summary to a historical version atomically.
         
         This method restores the topic's summary, suggestion, and end_score
-        from a historical record. Note: last_summarized_message_id should be
-        updated by the caller if needed.
+        from a historical record. Uses transaction to ensure atomicity.
+        Note: last_summarized_message_id should be updated by the caller if needed.
         
         Args:
             topic_id: ID of the topic
@@ -216,44 +236,65 @@ class SummaryService:
         
         Raises:
             ValueError: If topic or history not found, or history doesn't belong to topic
+            
+        Validates:
+            Requirements 11.5, 10.1, 10.2, 10.4
         """
-        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
-        if not topic:
-            raise ValueError(f"Topic {topic_id} not found")
-        
-        history = self.db.query(SummaryHistory).filter(
-            SummaryHistory.id == history_id
-        ).first()
-        if not history:
-            raise ValueError(f"History {history_id} not found")
-        
-        if history.topic_id != topic_id:
-            raise ValueError(f"History {history_id} does not belong to topic {topic_id}")
-        
-        # Restore from history
-        topic.summary = history.summary
-        topic.llm_suggestion = history.llm_suggestion
-        topic.end_score = history.end_score
-        topic.updated_at = datetime.utcnow()
-        
-        self.db.commit()
+        with transaction(self.db):
+            # Get topic with row lock
+            topic = self.db.query(Topic).filter(
+                Topic.id == topic_id
+            ).with_for_update().first()
+            
+            if not topic:
+                raise ValueError(f"Topic {topic_id} not found")
+            
+            # Get history record
+            history = self.db.query(SummaryHistory).filter(
+                SummaryHistory.id == history_id
+            ).first()
+            
+            if not history:
+                raise ValueError(f"History {history_id} not found")
+            
+            if history.topic_id != topic_id:
+                raise ValueError(f"History {history_id} does not belong to topic {topic_id}")
+            
+            # Restore from history
+            topic.summary = history.summary
+            topic.llm_suggestion = history.llm_suggestion
+            topic.end_score = history.end_score
+            topic.updated_at = datetime.utcnow()
     
     def apply_llm_suggestion(self, topic: Topic, suggestion: str) -> None:
         """
-        Apply LLM suggestion logic to topic.
+        Apply LLM suggestion logic to topic atomically.
         
         Currently handles force_end by setting topic to closing_pending.
         Other suggestions (continue, change_angle, suggest_end) are informational only.
+        Uses transaction to ensure atomic status update.
+        
+        When topic is in closing_pending state, ignores new LLM suggestions
+        until status returns to active (Requirement 7.8).
         
         Args:
             topic: Topic object to apply suggestion to
             suggestion: LLM suggestion to apply
+            
+        Validates:
+            Requirements 7.5, 7.8, 10.1, 10.2
         """
+        # Ignore new LLM suggestions when in closing_pending state (Requirement 7.8)
+        if topic.status == "closing_pending":
+            return
+        
         if suggestion == "force_end":
             # Automatically set topic to closing_pending
-            topic.status = "closing_pending"
-            topic.updated_at = datetime.utcnow()
-            self.db.commit()
+            with transaction(self.db):
+                topic.status = "closing_pending"
+                topic.closing_requested_by = "system"  # System-initiated close
+                topic.closing_requested_at = datetime.utcnow()
+                topic.updated_at = datetime.utcnow()
     
     def _build_summary_prompt(
         self,
@@ -303,24 +344,28 @@ Respond in JSON format:
         """
         Call DeepSeek API for summary generation.
         
-        This is a placeholder that will be replaced with actual API integration.
+        Uses the DeepSeekClient wrapper with retry logic and error handling.
         
         Args:
             prompt: Prompt to send to DeepSeek
         
         Returns:
-            API response as dictionary
+            API response as dictionary containing summary, suggestion, and end_score
         
         Raises:
-            Exception: If API call fails
+            LLMClientError: If API call fails after all retries
         """
-        # TODO: Implement actual DeepSeek API call
-        # For now, return a mock response
-        return {
-            "summary": "Mock summary of the conversation",
-            "suggestion": "continue",
-            "end_score": 30.0
-        }
+        try:
+            response = self.deepseek_client.generate_summary(
+                prompt=prompt,
+                temperature=0.3,
+                max_tokens=2000
+            )
+            return response
+            
+        except LLMClientError as e:
+            logger.error(f"DeepSeek API call failed: {e}")
+            raise Exception(f"DeepSeek API call failed: {e}")
     
     def _parse_llm_response(
         self,

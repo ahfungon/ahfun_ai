@@ -19,6 +19,7 @@ python-jose[cryptography]==3.3.0
 # LLM Integration
 httpx==0.26.0
 openai==1.10.0
+requests==2.31.0
 
 # Configuration
 pydantic==2.5.3
