@@ -195,7 +195,7 @@ async def monitor_topic_messages(
                 topic_id=msg.topic_id,
                 agent_id=msg.agent_id,
                 content=msg.content,
-                created_at=msg.created_at
+                created_at=msg.created_at.isoformat() if msg.created_at else ""
             )
             for msg in messages
         ]

@@ -355,17 +355,22 @@
     <script>
         const admin = {
             apiUrl: 'http://localhost:8000/api',
-            agentId: localStorage.getItem('adminAgentId') || '',
-            token: localStorage.getItem('adminToken') || '',
+            // 预置默认认证信息（Agent 1）
+            agentId: localStorage.getItem('adminAgentId') || 'agent-1',
+            token: localStorage.getItem('adminToken') || 'token-agent-1-secret',
             currentSection: 'dashboard',
 
             init() {
-                if (this.agentId) {
-                    document.getElementById('adminAgentId').value = this.agentId;
+                // 自动填充认证信息
+                document.getElementById('adminAgentId').value = this.agentId;
+                document.getElementById('adminToken').value = this.token;
+                
+                // 如果是首次访问，自动保存默认认证信息
+                if (!localStorage.getItem('adminAgentId')) {
+                    localStorage.setItem('adminAgentId', this.agentId);
+                    localStorage.setItem('adminToken', this.token);
                 }
-                if (this.token) {
-                    document.getElementById('adminToken').value = this.token;
-                }
+                
                 this.loadDashboard();
             },
 
