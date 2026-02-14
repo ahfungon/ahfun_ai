@@ -162,7 +162,7 @@
     - _需求：6.4, 6.5, 6.6, 6.7, 7.5, 11.1, 11.2, 11.3, 11.5_
 
 - [~] 8. 实现QueueService和任务队列集成
-  - [~] 8.1 创建QueueService类并集成Celery
+  - [x] 8.1 创建QueueService类并集成Celery
     - 使用Redis broker设置Celery应用
     - 实现enqueue_summary_job(topic_id, start_message_id, end_message_id) - 推送到队列
     - 实现get_job_status(job_id) - 查询任务状态
@@ -171,7 +171,7 @@
     - _需求：6.1, 6.9, 6.13_
     - _依赖：任务2（数据库模型）_
   
-  - [~] 8.2 编写QueueService测试套件
+  - [x] 8.2 编写QueueService测试套件
     - **属性33：任务队列并发控制** - 验证需求6.13
     - 测试任务入队
     - 测试任务状态查询
@@ -179,7 +179,7 @@
     - 测试并发限制
     - _需求：6.1, 6.9, 6.13_
 
-- [~] 9. 检查点 - 服务层和队列集成验证
+- [x] 9. 检查点 - 服务层和队列集成验证
   - 运行任务6、7、8的单元测试和属性测试套件
   - 验证MessageService正确触发SummaryJob
   - 验证SummaryService正确生成总结
@@ -190,7 +190,7 @@
 
 
 - [~] 10. 实现后台Worker
-  - [~] 10.1 创建Celery worker任务用于总结处理
+  - [x] 10.1 创建Celery worker任务用于总结处理
     - 实现process_summary_job(job_id)作为Celery任务
     - 在主题上获取数据库行锁（SELECT FOR UPDATE）
     - 获取自last_summarized_message_id以来的新消息
@@ -204,7 +204,7 @@
     - _需求：6.1, 6.4, 6.5, 6.7, 6.8, 6.9, 6.10, 6.14, 6.15, 7.5_
     - _依赖：任务7（SummaryService）、任务8（QueueService）_
   
-  - [~] 10.2 实现指数退避的重试机制
+  - [x] 10.2 实现指数退避的重试机制
     - 在LLM调用周围添加try-except块
     - 失败时增加retry_count
     - 实现指数退避延迟（1s、2s、4s）
@@ -214,7 +214,7 @@
     - _需求：6.11, 6.12, 12.4, 12.7, 12.8_
     - _依赖：任务10.1_
   
-  - [~] 10.3 编写Worker测试套件
+  - [x] 10.3 编写Worker测试套件
     - **属性17a：总结任务状态转换** - 验证需求6.1
     - **属性28：总结任务重试机制** - 验证需求6.11, 12.4
     - **属性34：数据库锁防止并发** - 验证需求6.14
@@ -227,7 +227,7 @@
     - _需求：6.1, 6.9, 6.11, 6.12, 6.14_
 
 - [~] 11. 实现API路由和请求处理器
-  - [~] 11.1 创建FastAPI应用和路由处理器
+  - [x] 11.1 创建FastAPI应用和路由处理器
     - 设置FastAPI应用，包含CORS和中间件
     - 实现GET /api/topic/active - 返回active/closing_pending主题
     - 实现GET /api/topic/{topic_id}/messages - 返回带limit的消息

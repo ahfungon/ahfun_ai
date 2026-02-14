@@ -22,7 +22,14 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     broker_connection_retry_on_startup=True,
+    # Task routing configuration
+    task_routes={
+        "workers.tasks.process_summary_job": {"queue": "summary_jobs"},
+        "workers.tasks.check_closing_timeouts": {"queue": "periodic_tasks"},
+    },
+    # Default queue
+    task_default_queue="default",
 )
 
-# Set concurrency limit
+# Set concurrency limit (maximum 5 concurrent tasks as per requirements)
 celery_app.conf.worker_concurrency = settings.celery_max_concurrent_tasks

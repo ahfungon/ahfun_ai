@@ -5,8 +5,9 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from models.models import Message, Topic, SummaryJob
+from models.models import Message, Topic
 from config.settings import settings
+from workers.celery_app import celery_app
 
 
 class MessageService:
@@ -74,23 +75,22 @@ class MessageService:
             topic.pending_summary_job = True
             topic.updated_at = datetime.utcnow()
             
-            # Create summary job
-            summary_job = SummaryJob(
-                id=str(uuid.uuid4()),
+            # Commit the message and pending flag first
+            self.db.commit()
+            
+            # Trigger Celery task asynchronously
+            # Note: We use QueueService pattern but trigger directly to avoid circular dependency
+            from services.queue_service import QueueService
+            queue_service = QueueService(self.db)
+            queue_service.enqueue_summary_job(
                 topic_id=topic_id,
                 start_message_id=topic.last_summarized_message_id,
-                end_message_id=message.id,
-                status="pending",
-                retry_count=0,
-                error_message=None,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                end_message_id=message.id
             )
-            
-            self.db.add(summary_job)
+        else:
+            # Commit message without triggering summary
+            self.db.commit()
         
-        # Commit all changes in a single transaction
-        self.db.commit()
         self.db.refresh(message)
         
         return message

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
+from api.routes import router as api_router
 
 # Create FastAPI application
 app = FastAPI(
@@ -23,6 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API routes
+app.include_router(api_router)
+
 
 @app.get("/")
 async def root():
@@ -31,20 +35,6 @@ async def root():
         "message": "Dual Agent Chat Platform API",
         "version": "1.0.0",
         "docs": "/docs"
-    }
-
-
-@app.get("/api/health")
-async def health_check():
-    """
-    Health check endpoint.
-    
-    Returns system status and service availability.
-    Will be fully implemented in Task 20.
-    """
-    return {
-        "status": "ok",
-        "message": "Service is running"
     }
 
 

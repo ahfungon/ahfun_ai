@@ -1,19 +1,263 @@
 """Celery tasks for background processing."""
+import logging
+import traceback
+import time
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
 from workers.celery_app import celery_app
+from models.database import SessionLocal
+from models.models import SummaryJob, Topic, Message
+from services.summary_service import SummaryService
+from services.topic_service import TopicService
+from config.settings import settings
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="workers.tasks.process_summary_job")
-def process_summary_job(job_id: str):
+def process_summary_job(job_id: str, db_session: Optional[Session] = None):
     """
-    Process a summary job asynchronously.
+    Process a summary job asynchronously with exponential backoff retry mechanism.
     
-    This task will be implemented in later tasks.
+    This task:
+    1. Acquires database row lock on the topic (SELECT FOR UPDATE)
+    2. Retrieves new messages since last_summarized_message_id
+    3. Calls SummaryService.generate_summary() with try-except for LLM failures
+    4. On failure: increments retry_count, implements exponential backoff
+    5. After max retries: marks job as failed, releases pending_summary_job flag
+    6. On success: saves summary history, updates topic, applies LLM suggestion
+    7. Resets token_count_since_summary to 0
+    8. Sets pending_summary_job to False
+    9. Marks job as done
     
     Args:
         job_id: The ID of the summary job to process
+        db_session: Optional database session (for testing)
+    
+    Validates:
+        Requirements 6.1, 6.4, 6.5, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 6.14, 6.15, 7.5, 12.4, 12.7, 12.8
     """
-    # Implementation will be added in Task 10
-    pass
+    # Use provided session or create new one
+    db: Session = db_session if db_session else SessionLocal()
+    should_close_db = db_session is None  # Only close if we created it
+    
+    try:
+        # 1. Get the job
+        job = db.query(SummaryJob).filter(SummaryJob.id == job_id).first()
+        if not job:
+            logger.error(f"Summary job {job_id} not found")
+            return
+        
+        # Update job status to processing
+        job.status = "processing"
+        db.commit()
+        
+        logger.info(
+            f"Processing summary job {job_id} for topic {job.topic_id} "
+            f"(retry {job.retry_count}/{settings.max_retries})"
+        )
+        
+        # 2. Acquire row lock on topic (SELECT FOR UPDATE)
+        # This prevents concurrent summary jobs on the same topic
+        topic = db.query(Topic).filter(
+            Topic.id == job.topic_id
+        ).with_for_update().first()
+        
+        if not topic:
+            logger.error(f"Topic {job.topic_id} not found for job {job_id}")
+            job.status = "failed"
+            job.error_message = f"Topic {job.topic_id} not found"
+            db.commit()
+            return
+        
+        # 3. Get new messages since last_summarized_message_id
+        new_messages = _get_messages_since(
+            db, 
+            job.topic_id, 
+            job.start_message_id
+        )
+        
+        if not new_messages:
+            logger.warning(f"No new messages found for job {job_id}")
+            # Still mark as done, but don't update summary
+            job.status = "done"
+            topic.pending_summary_job = False
+            db.commit()
+            return
+        
+        logger.info(f"Found {len(new_messages)} new messages for job {job_id}")
+        
+        # 4. Initialize services
+        summary_service = SummaryService(db)
+        topic_service = TopicService(db)
+        
+        try:
+            # 5. Generate summary (wrapped in try-except for LLM failures)
+            result = summary_service.generate_summary(topic, new_messages)
+            
+            logger.info(
+                f"Generated summary for job {job_id}: "
+                f"suggestion={result.suggestion}, end_score={result.end_score}"
+            )
+            
+            # 6. Save summary history
+            summary_service.save_summary_history(
+                topic_id=job.topic_id,
+                summary=result.summary,
+                suggestion=result.suggestion,
+                end_score=result.end_score
+            )
+            
+            # 7. Update topic with new summary, suggestion, end_score
+            summary_service.update_topic_summary(
+                topic_id=job.topic_id,
+                summary=result.summary,
+                suggestion=result.suggestion,
+                end_score=result.end_score
+            )
+            
+            # 8. Apply LLM suggestion (force_end logic)
+            summary_service.apply_llm_suggestion(topic, result.suggestion)
+            
+            # 9. Update topic state
+            topic.last_summarized_message_id = job.end_message_id
+            topic.token_count_since_summary = 0
+            topic.pending_summary_job = False
+            
+            # 10. Mark job as done
+            job.status = "done"
+            
+            # Commit all changes
+            db.commit()
+            
+            logger.info(f"Successfully completed summary job {job_id}")
+            
+        except Exception as llm_error:
+            # LLM call failed - implement retry mechanism with exponential backoff
+            error_msg = str(llm_error)
+            error_trace = traceback.format_exc()
+            
+            # Increment retry count
+            job.retry_count += 1
+            job.error_message = error_msg
+            
+            # Log detailed error information
+            logger.error(
+                f"LLM call failed for summary job {job_id} (attempt {job.retry_count}/{settings.max_retries}): {error_msg}",
+                extra={
+                    "job_id": job_id,
+                    "topic_id": job.topic_id,
+                    "retry_count": job.retry_count,
+                    "max_retries": settings.max_retries,
+                    "error": error_msg,
+                    "traceback": error_trace
+                }
+            )
+            
+            # Check if we've exceeded max retries
+            if job.retry_count >= settings.max_retries:
+                # All retries exhausted - mark as failed and release lock
+                job.status = "failed"
+                topic.pending_summary_job = False
+                
+                logger.error(
+                    f"Summary job {job_id} failed after {job.retry_count} retries. "
+                    f"Releasing pending_summary_job flag for topic {job.topic_id}."
+                )
+                
+                db.commit()
+                return
+            else:
+                # Retry with exponential backoff
+                job.status = "pending"
+                db.commit()
+                
+                # Get delay for this retry attempt (0-indexed)
+                retry_delays = settings.retry_delays_list
+                delay_index = min(job.retry_count - 1, len(retry_delays) - 1)
+                delay = retry_delays[delay_index]
+                
+                logger.info(
+                    f"Retrying summary job {job_id} in {delay} seconds "
+                    f"(attempt {job.retry_count + 1}/{settings.max_retries})"
+                )
+                
+                # Wait for exponential backoff delay
+                time.sleep(delay)
+                
+                # Re-enqueue the job for retry
+                process_summary_job.apply_async(args=[job_id], countdown=0)
+                return
+        
+    except Exception as e:
+        # Unexpected error (not LLM-related)
+        error_msg = str(e)
+        error_trace = traceback.format_exc()
+        
+        logger.error(
+            f"Unexpected error in summary job {job_id}: {error_msg}",
+            extra={
+                "job_id": job_id,
+                "error": error_msg,
+                "traceback": error_trace
+            }
+        )
+        
+        # Update job with error information
+        job = db.query(SummaryJob).filter(SummaryJob.id == job_id).first()
+        if job:
+            job.status = "failed"
+            job.error_message = f"Unexpected error: {error_msg}"
+            
+            # Release the lock on final failure
+            topic = db.query(Topic).filter(Topic.id == job.topic_id).first()
+            if topic:
+                topic.pending_summary_job = False
+            
+            db.commit()
+        
+        # Don't re-raise for unexpected errors - just fail the job
+        
+    finally:
+        if should_close_db:
+            db.close()
+
+
+def _get_messages_since(
+    db: Session,
+    topic_id: str,
+    start_message_id: Optional[str]
+) -> List[Message]:
+    """
+    Get all messages since a specific message ID.
+    
+    Args:
+        db: Database session
+        topic_id: Topic ID
+        start_message_id: Starting message ID (exclusive), or None for all messages
+    
+    Returns:
+        List of messages ordered by created_at ascending
+    """
+    query = db.query(Message).filter(Message.topic_id == topic_id)
+    
+    if start_message_id:
+        # Get the timestamp of the start message
+        start_message = db.query(Message).filter(
+            Message.id == start_message_id
+        ).first()
+        
+        if start_message:
+            # Get messages created after the start message
+            query = query.filter(Message.created_at > start_message.created_at)
+    
+    # Order by created_at ascending (oldest to newest)
+    messages = query.order_by(Message.created_at.asc()).all()
+    
+    return messages
 
 
 @celery_app.task(name="workers.tasks.check_closing_timeouts")
