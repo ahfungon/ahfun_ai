@@ -77,6 +77,12 @@ async def monitor():
     return FileResponse("frontend/monitor.html")
 
 
+@app.get("/history.html")
+async def history():
+    """Serve history topics page (no authentication required)."""
+    return FileResponse("frontend/history.html")
+
+
 @app.get("/index.html")
 async def index():
     """Serve chat interface (requires authentication)."""
