@@ -982,6 +982,12 @@ def main():
         default="simulation_test/agent_config.yaml",
         help="配置文件路径"
     )
+    parser.add_argument(
+        "--env",
+        choices=["local", "server"],
+        default="local",
+        help="运行环境：local=本地(localhost:8000), server=明宽服务器(129.211.28.211:8080)"
+    )
     
     args = parser.parse_args()
     
@@ -991,6 +997,14 @@ def main():
     except Exception as e:
         print(f"❌ 加载配置失败: {e}")
         return 1
+    
+    # 根据环境参数设置 API base_url
+    if args.env == "server":
+        config['api']['base_url'] = "http://129.211.28.211:8080"
+        print(f"🌐 连接到明宽服务器: {config['api']['base_url']}")
+    else:
+        config['api']['base_url'] = "http://localhost:8000"
+        print(f"🏠 连接到本地服务: {config['api']['base_url']}")
     
     # 检查智能体是否存在
     if args.agent not in config['agents']:

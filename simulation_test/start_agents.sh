@@ -1,139 +1,121 @@
 #!/bin/bash
-# 启动自主智能体的便捷脚本
+
+# 自主智能体启动脚本
+# 支持本地和服务器环境切换
+
+set -e
 
 # 颜色定义
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}🚀 自主智能体启动脚本${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
+# 默认环境
+ENV="local"
 
-# 检查环境变量
-if [ -z "$DEEPSEEK_API_KEY" ]; then
-    echo -e "${YELLOW}⚠️  DEEPSEEK_API_KEY 未设置${NC}"
-    echo -e "${YELLOW}   正在从 .env 文件加载...${NC}"
-    
-    if [ -f "../.env" ]; then
-        source ../.env
-        export DEEPSEEK_API_KEY
-        echo -e "${GREEN}✓ API 密钥已加载${NC}"
-    else
-        echo -e "${RED}❌ .env 文件不存在${NC}"
-        echo -e "${RED}   请设置 DEEPSEEK_API_KEY 环境变量${NC}"
-        exit 1
-    fi
-fi
+# 解析参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            ENV="$2"
+            shift 2
+            ;;
+        *)
+            echo "未知参数: $1"
+            echo "用法: $0 [--env local|server]"
+            exit 1
+            ;;
+    esac
+done
 
-# 检查服务状态
-echo ""
-echo -e "${BLUE}📡 检查服务状态...${NC}"
-if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ 服务正常运行${NC}"
-else
-    echo -e "${RED}❌ 服务未运行${NC}"
-    echo -e "${YELLOW}   请先启动服务: ./start_services.sh${NC}"
+# 验证环境参数
+if [[ "$ENV" != "local" && "$ENV" != "server" ]]; then
+    echo -e "${YELLOW}⚠️  无效的环境参数: $ENV${NC}"
+    echo "请使用: local 或 server"
     exit 1
 fi
 
-# 检查活跃话题
-echo ""
-echo -e "${BLUE}🔍 检查活跃话题...${NC}"
-if curl -s "http://localhost:8000/api/topic/active" \
-    -H "X-Agent-Id: test" \
-    -H "X-Auth-Token: test" > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ 找到活跃话题${NC}"
+# 显示环境信息
+echo "=========================================="
+echo "自主智能体启动"
+if [[ "$ENV" == "server" ]]; then
+    echo -e "${BLUE}🌐 目标环境: 明宽服务器 (129.211.28.211:8080)${NC}"
 else
-    echo -e "${YELLOW}⚠️  没有活跃话题${NC}"
-    echo -e "${YELLOW}   建议先创建话题: python simulation_test/enhanced_simulator.py --rounds 3${NC}"
+    echo -e "${GREEN}🏠 目标环境: 本地服务 (localhost:8000)${NC}"
+fi
+echo "=========================================="
+echo ""
+
+# 检查虚拟环境
+if [ ! -d "venv" ]; then
+    echo -e "${YELLOW}创建虚拟环境...${NC}"
+    python3 -m venv venv
 fi
 
-# 显示可用智能体
-echo ""
-echo -e "${BLUE}🤖 可用智能体:${NC}"
-echo -e "  ${GREEN}alice${NC}  - 分析型 (注重数据和证据)"
-echo -e "  ${GREEN}bob${NC}    - 创造型 (富有创造力和前瞻性)"
-echo -e "  ${GREEN}carol${NC}  - 实用型 (注重实践和应用)"
+# 激活虚拟环境
+source venv/bin/activate
 
-# 选择启动方式
-echo ""
-echo -e "${BLUE}请选择启动方式:${NC}"
-echo "  1) 启动单个智能体（前台运行）"
-echo "  2) 启动两个智能体（后台运行）"
-echo "  3) 启动所有智能体（后台运行）"
-echo "  4) 查看运行中的智能体"
-echo "  5) 停止所有智能体"
-echo ""
-read -p "请输入选项 (1-5): " choice
+# 检查依赖
+echo -e "${YELLOW}检查依赖...${NC}"
+pip install -q -r requirements.txt
 
-case $choice in
-    1)
-        echo ""
-        read -p "请输入智能体名称 (alice/bob/carol): " agent
-        echo ""
-        echo -e "${GREEN}🚀 启动 $agent...${NC}"
-        echo -e "${YELLOW}   按 Ctrl+C 停止${NC}"
-        echo ""
-        python autonomous_agent.py --agent $agent
-        ;;
+# 创建日志目录
+mkdir -p simulation_test/logs
+
+# 启动智能体
+echo ""
+echo -e "${GREEN}启动智能体...${NC}"
+echo ""
+
+# 使用 tmux 或 screen 启动多个智能体（如果可用）
+if command -v tmux &> /dev/null; then
+    echo "使用 tmux 启动智能体..."
     
-    2)
-        echo ""
-        echo -e "${GREEN}🚀 启动 Alice 和 Bob (后台运行)...${NC}"
-        nohup python autonomous_agent.py --agent alice > /dev/null 2>&1 &
-        ALICE_PID=$!
-        nohup python autonomous_agent.py --agent bob > /dev/null 2>&1 &
-        BOB_PID=$!
-        
-        echo -e "${GREEN}✓ Alice 已启动 (PID: $ALICE_PID)${NC}"
-        echo -e "${GREEN}✓ Bob 已启动 (PID: $BOB_PID)${NC}"
-        echo ""
-        echo -e "${BLUE}查看日志:${NC}"
-        echo "  tail -f logs/agent-alice.log"
-        echo "  tail -f logs/agent-bob.log"
-        echo ""
-        echo -e "${BLUE}停止智能体:${NC}"
-        echo "  kill $ALICE_PID $BOB_PID"
-        ;;
+    # 创建新会话
+    tmux new-session -d -s agents
     
-    3)
-        echo ""
-        echo -e "${GREEN}🚀 启动所有智能体 (后台运行)...${NC}"
-        nohup python autonomous_agent.py --agent alice > /dev/null 2>&1 &
-        echo -e "${GREEN}✓ Alice 已启动 (PID: $!)${NC}"
-        nohup python autonomous_agent.py --agent bob > /dev/null 2>&1 &
-        echo -e "${GREEN}✓ Bob 已启动 (PID: $!)${NC}"
-        nohup python autonomous_agent.py --agent carol > /dev/null 2>&1 &
-        echo -e "${GREEN}✓ Carol 已启动 (PID: $!)${NC}"
-        echo ""
-        echo -e "${BLUE}查看日志:${NC}"
-        echo "  tail -f logs/agent-*.log"
-        ;;
+    # 启动 Alice
+    tmux send-keys -t agents "source venv/bin/activate" C-m
+    tmux send-keys -t agents "python3 simulation_test/autonomous_agent.py --agent alice --env $ENV" C-m
     
-    4)
-        echo ""
-        echo -e "${BLUE}运行中的智能体:${NC}"
-        ps aux | grep "autonomous_agent.py" | grep -v grep | while read line; do
-            echo "  $line"
-        done
-        ;;
+    # 创建新窗口启动 Bob
+    tmux new-window -t agents
+    tmux send-keys -t agents "source venv/bin/activate" C-m
+    tmux send-keys -t agents "python3 simulation_test/autonomous_agent.py --agent bob --env $ENV" C-m
     
-    5)
-        echo ""
-        echo -e "${YELLOW}🛑 停止所有智能体...${NC}"
-        pkill -f "autonomous_agent.py"
-        echo -e "${GREEN}✓ 已停止${NC}"
-        ;;
+    echo ""
+    echo -e "${GREEN}✓ 智能体已在 tmux 会话中启动${NC}"
+    echo ""
+    echo "查看智能体："
+    echo "  tmux attach -t agents    # 连接到会话"
+    echo "  Ctrl+B, N                # 切换窗口"
+    echo "  Ctrl+B, D                # 分离会话"
+    echo ""
+    echo "停止智能体："
+    echo "  tmux kill-session -t agents"
     
-    *)
-        echo -e "${RED}❌ 无效选项${NC}"
-        exit 1
-        ;;
-esac
+else
+    echo -e "${YELLOW}⚠️  未安装 tmux，使用后台进程启动${NC}"
+    echo ""
+    
+    # 后台启动
+    nohup python3 simulation_test/autonomous_agent.py --agent alice --env $ENV > simulation_test/logs/alice.log 2>&1 &
+    ALICE_PID=$!
+    echo -e "${GREEN}✓ Alice 已启动 (PID: $ALICE_PID)${NC}"
+    
+    nohup python3 simulation_test/autonomous_agent.py --agent bob --env $ENV > simulation_test/logs/bob.log 2>&1 &
+    BOB_PID=$!
+    echo -e "${GREEN}✓ Bob 已启动 (PID: $BOB_PID)${NC}"
+    
+    echo ""
+    echo "查看日志："
+    echo "  tail -f simulation_test/logs/alice.log"
+    echo "  tail -f simulation_test/logs/bob.log"
+    echo ""
+    echo "停止智能体："
+    echo "  kill $ALICE_PID $BOB_PID"
+fi
 
 echo ""
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo "=========================================="
