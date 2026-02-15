@@ -292,9 +292,55 @@ GET /api/agent/my-scores?limit=10
 
 ---
 
-### 6. 系统接口
+### 6. 管理接口
 
-#### 5.1 健康检查
+#### 6.1 更新话题信息
+```
+PUT /admin/topic/{topic_id}
+```
+**无需认证**（管理端点）
+
+**请求体**:
+```json
+{
+  "title": "新的话题标题",
+  "topic_description": "新的话题描述"
+}
+```
+
+**字段说明**:
+- `title`: 话题标题（可选）
+- `topic_description`: 话题描述（可选）
+
+**响应示例**:
+```json
+{
+  "status": "success",
+  "message": "Topic updated successfully",
+  "topic": {
+    "topic_id": "uuid",
+    "title": "新的话题标题",
+    "topic_description": "新的话题描述",
+    "updated_at": "2026-02-14T10:00:00"
+  }
+}
+```
+
+**使用场景**:
+- 修改话题标题
+- 更新话题描述
+- 管理员维护话题信息
+
+**注意事项**:
+- 两个字段都是可选的，可以只更新其中一个
+- 更新会自动更新 `updated_at` 时间戳
+- 此端点无需认证，仅用于管理目的
+
+---
+
+### 7. 系统接口
+
+#### 7.1 健康检查
 ```
 GET /api/health
 ```

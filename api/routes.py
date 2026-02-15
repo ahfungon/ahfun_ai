@@ -119,6 +119,12 @@ class AgentScoreResponse(BaseModel):
     recent_scores: list[dict]
 
 
+class UpdateTopicRequest(BaseModel):
+    """Request model for updating a topic."""
+    title: Optional[str] = Field(None, description="Topic title")
+    topic_description: Optional[str] = Field(None, description="Topic description")
+
+
 # Dependency for authentication
 def get_current_agent(request: Request, db: Session = Depends(get_db)) -> Agent:
     """
@@ -198,7 +204,7 @@ async def monitor_topic_messages(
     db: Session = Depends(get_db)
 ):
     """
-    Monitor endpoint: Get messages for a topic without authentication.
+    Monitor endpoint: Get messages for a topic without authentication with relevance scores.
     This endpoint is for monitoring/display purposes only.
     
     Args:
@@ -206,8 +212,10 @@ async def monitor_topic_messages(
         limit: Maximum number of messages to return (default: 50, max: 1000)
     
     Returns:
-        List of messages ordered by creation time
+        List of messages ordered by creation time with relevance scores
     """
+    from models.models import MessageRelevanceScore
+    
     message_service = MessageService(db)
     messages = message_service.get_messages(topic_id, limit=limit)
     
@@ -215,6 +223,13 @@ async def monitor_topic_messages(
     agent_ids = list(set(msg.agent_id for msg in messages))
     agents = db.query(Agent).filter(Agent.id.in_(agent_ids)).all()
     agent_name_map = {agent.id: agent.name for agent in agents}
+    
+    # Get relevance scores for all messages
+    message_ids = [msg.id for msg in messages]
+    scores = db.query(MessageRelevanceScore).filter(
+        MessageRelevanceScore.message_id.in_(message_ids)
+    ).all()
+    score_map = {score.message_id: score for score in scores}
     
     return MessagesResponse(
         messages=[
@@ -224,7 +239,9 @@ async def monitor_topic_messages(
                 agent_id=msg.agent_id,
                 agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
-                created_at=msg.created_at.isoformat() if msg.created_at else ""
+                created_at=msg.created_at.isoformat() if msg.created_at else "",
+                relevance_score=score_map[msg.id].relevance_score if msg.id in score_map else None,
+                evaluation_comment=score_map[msg.id].evaluation_comment if msg.id in score_map else None
             )
             for msg in messages
         ]
@@ -844,6 +861,104 @@ async def admin_list_topics(
         topics=topics_list,
         total=len(topics_list)
     )
+
+
+@router.get("/admin/topic/{topic_id}")
+async def admin_get_topic_detail(
+    topic_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Get detailed topic information.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        topic_id: Topic ID
+    
+    Returns:
+        Detailed topic information including description and scores
+    """
+    from models.models import MessageRelevanceScore
+    from sqlalchemy import func
+    
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Topic {topic_id} not found"
+        )
+    
+    # Get message count
+    message_count = db.query(func.count(Message.id)).filter(
+        Message.topic_id == topic_id
+    ).scalar() or 0
+    
+    # Get average relevance score
+    avg_score = db.query(func.avg(MessageRelevanceScore.relevance_score)).filter(
+        MessageRelevanceScore.topic_id == topic_id
+    ).scalar()
+    
+    return {
+        "topic_id": topic.id,
+        "title": topic.title,
+        "topic_description": topic.topic_description,
+        "status": topic.status,
+        "summary": topic.summary,
+        "llm_suggestion": topic.llm_suggestion,
+        "end_score": topic.end_score,
+        "token_count_since_summary": topic.token_count_since_summary,
+        "message_count": message_count,
+        "average_relevance_score": float(avg_score) if avg_score else None,
+        "created_at": topic.created_at.isoformat() if topic.created_at else None,
+        "updated_at": topic.updated_at.isoformat() if topic.updated_at else None
+    }
+
+
+@router.put("/admin/topic/{topic_id}")
+async def admin_update_topic(
+    topic_id: str,
+    request: UpdateTopicRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Update topic information.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        topic_id: Topic ID
+        request: Update request with title and/or description
+    
+    Returns:
+        Updated topic information
+    """
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Topic {topic_id} not found"
+        )
+    
+    # Update fields if provided
+    if request.title is not None:
+        topic.title = request.title
+    if request.topic_description is not None:
+        topic.topic_description = request.topic_description
+    
+    topic.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(topic)
+    
+    return {
+        "status": "success",
+        "message": "Topic updated successfully",
+        "topic": {
+            "topic_id": topic.id,
+            "title": topic.title,
+            "topic_description": topic.topic_description,
+            "updated_at": topic.updated_at.isoformat()
+        }
+    }
 
 
 @router.get("/admin/stats")
