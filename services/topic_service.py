@@ -291,7 +291,7 @@ class TopicService:
             import json
             
             # Initialize LLM client
-            api_key = os.getenv("DEEPSEEK_API_KEY", "")
+            api_key = settings.deepseek_api_key
             if not api_key:
                 raise ValueError("DEEPSEEK_API_KEY not configured")
             
