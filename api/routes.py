@@ -171,7 +171,8 @@ async def monitor_active_topic(db: Session = Depends(get_db)):
     # Get closing status details if in closing_pending state
     closing_status = None
     if topic.status == "closing_pending":
-        closing_status = topic_service.get_closing_status(topic.id)
+        closing_status_detail = topic_service.get_closing_status(topic.id)
+        closing_status = closing_status_detail.to_dict() if closing_status_detail else None
     
     # Get LLM hint if applicable
     llm_hint = None
@@ -188,13 +189,7 @@ async def monitor_active_topic(db: Session = Depends(get_db)):
         llm_hint=llm_hint,
         end_score=topic.end_score,
         token_count_since_summary=topic.token_count_since_summary,
-        agent_a_wants_close=topic.agent_a_wants_close,
-        agent_b_wants_close=topic.agent_b_wants_close,
-        closing_requested_by=closing_status.get("requested_by") if closing_status else None,
-        closing_requested_at=closing_status.get("requested_at") if closing_status else None,
-        closing_timeout_remaining=closing_status.get("timeout_remaining") if closing_status else None,
-        created_at=topic.created_at,
-        updated_at=topic.updated_at
+        closing_status=closing_status
     )
 
 
