@@ -1,49 +1,58 @@
-.PHONY: help install check test-basic test-high-freq test-closing test-cancel test-all clean
+.PHONY: help install test test-llm test-quick test-stress clean
 
 help:
-	@echo "双智能体对话模拟测试 - 可用命令:"
+	@echo "增强版智能体模拟器 - 可用命令:"
 	@echo ""
-	@echo "  make install        - 安装依赖"
-	@echo "  make check          - 检查环境配置"
-	@echo "  make test-basic     - 运行基本对话测试"
-	@echo "  make test-high-freq - 运行高频消息测试（触发摘要）"
-	@echo "  make test-closing   - 运行话题关闭测试"
-	@echo "  make test-cancel    - 运行取消关闭测试"
-	@echo "  make test-all       - 运行所有测试"
-	@echo "  make clean          - 清理临时文件"
+	@echo "  make install      - 安装依赖"
+	@echo "  make test         - 运行基础测试（预设回复）"
+	@echo "  make test-llm     - 运行 LLM 测试（需要 API 密钥）"
+	@echo "  make test-quick   - 快速测试（5轮）"
+	@echo "  make test-stress  - 压力测试（50轮）"
+	@echo "  make clean        - 清理日志和报告"
 	@echo ""
 
 install:
 	@echo "安装依赖..."
 	pip install -r requirements.txt
-	@echo "✅ 依赖安装完成"
+	pip install tiktoken pyyaml
+	@echo "✓ 依赖安装完成"
 
-check:
-	@echo "检查环境配置..."
-	python check_environment.py
+test:
+	@echo "运行基础测试..."
+	python enhanced_simulator.py --rounds 10
 
-test-basic:
-	@echo "运行基本对话测试..."
-	python run_simulation.py --scenario basic
+test-llm:
+	@echo "运行 LLM 测试..."
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "错误: 请设置 OPENAI_API_KEY 环境变量"; \
+		exit 1; \
+	fi
+	python enhanced_simulator.py --use-llm --rounds 10
 
-test-high-freq:
-	@echo "运行高频消息测试..."
-	python run_simulation.py --scenario high-freq
+test-quick:
+	@echo "快速测试..."
+	python enhanced_simulator.py --rounds 5
 
-test-closing:
-	@echo "运行话题关闭测试..."
-	python run_simulation.py --scenario closing
+test-stress:
+	@echo "压力测试..."
+	python enhanced_simulator.py --rounds 50
 
-test-cancel:
-	@echo "运行取消关闭测试..."
-	python run_simulation.py --scenario cancel
+test-medical:
+	@echo "医疗 AI 场景测试..."
+	python enhanced_simulator.py \
+		--topic "人工智能在医疗领域的应用前景" \
+		--description "讨论AI在医疗诊断、个性化治疗、药物研发等方面的技术进展" \
+		--rounds 10
 
-test-all:
-	@echo "运行所有测试..."
-	python run_simulation.py --scenario all
+test-climate:
+	@echo "气候变化场景测试..."
+	python enhanced_simulator.py \
+		--topic "应对气候变化的技术创新" \
+		--description "探讨可再生能源、碳捕获、智慧城市等技术" \
+		--rounds 10
 
 clean:
-	@echo "清理临时文件..."
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	@echo "✅ 清理完成"
+	@echo "清理日志和报告..."
+	rm -rf logs/*.log
+	rm -rf reports/*
+	@echo "✓ 清理完成"

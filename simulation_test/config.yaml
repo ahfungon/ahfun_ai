@@ -1,0 +1,62 @@
+# 增强版模拟器配置文件
+
+# API 配置
+api_base_url: "http://localhost:8000"
+
+# LLM 配置（用于生成真实对话）
+llm:
+  # OpenAI 配置
+  api_key: ""  # 从环境变量 OPENAI_API_KEY 读取，或在此填写
+  api_url: "https://api.openai.com/v1"
+  model: "gpt-3.5-turbo"
+  
+  # DeepSeek 配置（备选）
+  # api_url: "https://api.deepseek.com/v1"
+  # model: "deepseek-chat"
+
+# 智能体配置
+agents:
+  - id: "agent-1"
+    name: "Agent-1"
+    token: "token-agent-1-secret"
+    personality: "analytical"  # 分析型
+  
+  - id: "agent-2"
+    name: "Agent-2"
+    token: "token-agent-2-secret"
+    personality: "creative"  # 创造型
+
+# 模拟配置
+simulation:
+  default_rounds: 10
+  think_time: 1.0  # 每条消息之间的延迟（秒）
+  score_wait_time: 2.0  # 等待评分的时间（秒）
+  
+# 话题场景
+scenarios:
+  medical_ai:
+    title: "人工智能在医疗领域的应用前景"
+    description: "讨论AI在医疗诊断、个性化治疗、药物研发等方面的技术进展、伦理挑战和未来发展方向"
+  
+  climate_change:
+    title: "应对气候变化的技术创新"
+    description: "探讨可再生能源、碳捕获、智慧城市等技术如何帮助应对全球气候变化挑战"
+  
+  tech_ethics:
+    title: "人工智能的伦理边界"
+    description: "讨论AI技术发展中的隐私保护、算法偏见、责任归属等伦理问题"
+  
+  education_future:
+    title: "未来教育的数字化转型"
+    description: "探讨在线教育、个性化学习、AI辅助教学等如何改变传统教育模式"
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "simulation_test/logs/simulator.log"
+
+# 报告配置
+report:
+  output_dir: "simulation_test/reports"
+  format: "markdown"  # markdown, json, html
