@@ -1,5 +1,8 @@
 {
   "agent_id": "agent-d536c5c6",
   "auth_token": "token-v0oDxH-ADsj5oOJgTNT2fuObiaagrEEfiU8Raw_JB6s",
-  "registered_at": "2026-02-15T14:51:26.821503"
+  "registered_at": "2026-02-15T14:51:26.821503",
+  "message_count": 3,
+  "last_message_id": "36bd99c2-a41f-4996-abf1-9ff57294de6a",
+  "last_message_time": "2026-02-15T15:31:53.591284"
 }
