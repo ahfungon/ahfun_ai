@@ -303,7 +303,12 @@ class ConversationSimulator:
         # 创建 LLM 后端（如果需要）
         llm_backend = None
         if use_llm:
-            api_key = os.getenv("OPENAI_API_KEY") or self.config.get("llm", {}).get("api_key")
+            # 优先使用 DeepSeek（与评分系统一致），其次 OpenAI
+            api_key = (
+                os.getenv("DEEPSEEK_API_KEY") or 
+                os.getenv("OPENAI_API_KEY") or 
+                self.config.get("llm", {}).get("api_key")
+            )
             if api_key:
                 llm_config = self.config.get("llm", {})
                 llm_backend = LLMBackend(

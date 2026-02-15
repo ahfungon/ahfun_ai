@@ -51,11 +51,20 @@ make test-quick
 ### 4. 使用真实 LLM（可选）
 
 ```bash
-# 设置 API 密钥
-export OPENAI_API_KEY="your-api-key-here"
+# 推荐：使用 DeepSeek（与评分系统一致）
+export DEEPSEEK_API_KEY="your-deepseek-api-key"
+
+# 或使用 OpenAI
+export OPENAI_API_KEY="your-openai-api-key"
 
 # 运行 LLM 测试
 make test-llm
+```
+
+提示：如果已经配置了 `.env` 文件，可以直接加载：
+```bash
+source ../.env
+python enhanced_simulator.py --use-llm
 ```
 
 ## 常用命令
@@ -135,8 +144,12 @@ curl http://localhost:8000/api/health
 ### LLM 失败
 
 ```bash
-# 检查 API 密钥
+# 检查 API 密钥（优先使用 DeepSeek）
+echo $DEEPSEEK_API_KEY
 echo $OPENAI_API_KEY
+
+# 从 .env 文件加载
+source ../.env
 
 # 不使用 LLM
 python enhanced_simulator.py  # 不加 --use-llm
