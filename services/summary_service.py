@@ -331,7 +331,7 @@ Please provide:
 2. Conversation suggestion (continue/change_angle/suggest_end/force_end)
 3. End score (0-100, higher means more strongly suggest ending)
 
-Respond in JSON format:
+Respond in json format:
 {{
     "summary": "your updated summary here",
     "suggestion": "continue|change_angle|suggest_end|force_end",
