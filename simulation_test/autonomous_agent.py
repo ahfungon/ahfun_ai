@@ -776,6 +776,14 @@ class AutonomousAgent:
             self.logger.info(f"💡 讨论深度高({end_score}/100)且建议结束，同意关闭", indent=1)
             return True
         
+        # 条件 3: 没有 LLM 建议时，根据消息数量判断（快速测试模式）
+        # 如果对方请求关闭，且消息数量 >= 4，则同意
+        if llm_suggestion is None:
+            # 获取消息数量（从 topic 的 token_count_since_summary 推测）
+            # 或者直接同意（因为对方已经判断应该关闭了）
+            self.logger.info("💡 对方请求关闭且无LLM建议，默认同意", indent=1)
+            return True
+        
         return False
     
     def should_reject_close(self, topic: Dict) -> bool:
