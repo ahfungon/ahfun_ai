@@ -231,7 +231,6 @@ async def monitor_topic_messages(
         messages=[
             MessageResponse(
                 message_id=msg.id,
-                topic_id=msg.topic_id,
                 agent_id=msg.agent_id,
                 agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,

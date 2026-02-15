@@ -208,14 +208,18 @@ class AutonomousAgent:
         
         self.logger = AgentLogger(self.agent_config['name'], log_file)
         
-        state_dir = config['state'].get('save_dir', 'simulation_test/.agent_state')
-        state_file = f"{state_dir}/agent-{agent_key}.json"
-        self.state = AgentState(state_file)
-        
         self.llm = LLMClient(config['llm'], self.logger)
         
         self.running = True
         self.api_base_url = self.api_config['base_url']
+        
+        # 根据环境使用不同的状态目录
+        state_dir = config['state'].get('save_dir', 'simulation_test/.agent_state')
+        if self.api_base_url == "http://129.211.28.211:8080":
+            # 服务器环境使用独立的状态目录
+            state_dir = state_dir.replace('.agent_state', '.agent_state_server')
+        state_file = f"{state_dir}/agent-{agent_key}.json"
+        self.state = AgentState(state_file)
 
     
     def _make_request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
