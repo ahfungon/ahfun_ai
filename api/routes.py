@@ -181,6 +181,7 @@ async def monitor_active_topic(db: Session = Depends(get_db)):
     return TopicResponse(
         topic_id=topic.id,
         title=topic.title,
+        topic_description=topic.topic_description,
         status=topic.status,
         summary=topic.summary,
         llm_suggestion=topic.llm_suggestion,
