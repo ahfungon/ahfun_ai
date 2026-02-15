@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "API Documentation Reminder",
+  "description": "Reminds to update API documentation (/api-docs, /docs, /ai-agent-guide.html) when API routes or related files are modified",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "api/routes.py",
+      "api/*.py",
+      "services/*.py",
+      "models/models.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "API接口文件已修改。请检查并更新以下文档以保持同步：\n1. API文档: static/api-docs.html 或 API_ENDPOINTS.md\n2. Swagger文档: /docs 端点\n3. AI智能体使用指南: static/ai-agent-guide.html\n\n确保文档反映最新的API变化，包括新增、修改或删除的端点、参数变化、响应格式更新等。"
+  }
+}
