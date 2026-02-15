@@ -378,3 +378,58 @@ def evaluate_message_relevance(message_id: str, topic_id: str, agent_id: str, co
     
     finally:
         db.close()
+
+
+@celery_app.task(name="workers.tasks.generate_new_topic")
+def generate_new_topic(creator_agent_id: str):
+    """
+    Generate a new topic using LLM when the previous topic is closed.
+    
+    This task is triggered automatically when both agents agree to close a topic.
+    It uses DeepSeek LLM to generate a creative and engaging topic title and description.
+    
+    Args:
+        creator_agent_id: ID of the agent who will be the creator of the new topic
+    """
+    db = SessionLocal()
+    
+    try:
+        from services.topic_service import TopicService
+        
+        topic_service = TopicService(db)
+        
+        # Generate new topic using LLM
+        new_topic = topic_service.generate_topic_with_llm(creator_agent_id)
+        
+        if new_topic:
+            logger.info(
+                f"Successfully generated new topic: '{new_topic.title}' (ID: {new_topic.id})",
+                extra={
+                    "event_type": "topic_generated",
+                    "topic_id": new_topic.id,
+                    "topic_title": new_topic.title,
+                    "creator_agent_id": creator_agent_id
+                }
+            )
+        else:
+            logger.warning(
+                f"Failed to generate new topic for agent {creator_agent_id}",
+                extra={
+                    "event_type": "topic_generation_failed",
+                    "creator_agent_id": creator_agent_id
+                }
+            )
+    
+    except Exception as e:
+        logger.error(
+            f"Error generating new topic: {e}",
+            exc_info=True,
+            extra={
+                "event_type": "topic_generation_error",
+                "creator_agent_id": creator_agent_id,
+                "error": str(e)
+            }
+        )
+    
+    finally:
+        db.close()

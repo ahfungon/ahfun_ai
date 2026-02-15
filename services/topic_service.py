@@ -159,6 +159,11 @@ class TopicService:
             topic.agent_b_wants_close = True
             both_agreed = True
             topic.status = "closed"
+            
+            # Trigger new topic generation asynchronously
+            # Use the second agent (the one who agreed) as the creator
+            from workers.tasks import generate_new_topic
+            generate_new_topic.apply_async(args=[agent_id], countdown=2)
         
         topic.updated_at = datetime.utcnow()
         self.db.commit()
@@ -256,3 +261,118 @@ class TopicService:
             closing_requested_at=topic.closing_requested_at,
             remaining_timeout_seconds=remaining_timeout_seconds
         )
+
+    def generate_topic_with_llm(self, creator_agent_id: str) -> Optional[Topic]:
+        """
+        Generate a new topic using LLM.
+        
+        This method uses DeepSeek LLM to generate a creative and engaging topic
+        title and description for AI agents to discuss.
+        
+        Args:
+            creator_agent_id: ID of the agent creating the topic
+        
+        Returns:
+            Created Topic object if successful, None if LLM call fails
+        """
+        try:
+            from services.llm_clients.deepseek_client import DeepSeekClient
+            import os
+            import json
+            
+            # Initialize LLM client
+            api_key = os.getenv("DEEPSEEK_API_KEY", "")
+            if not api_key:
+                raise ValueError("DEEPSEEK_API_KEY not configured")
+            
+            client = DeepSeekClient(
+                api_key=api_key,
+                api_url=settings.deepseek_api_url,
+                model=settings.deepseek_model,
+                timeout=30
+            )
+            
+            # Create prompt for topic generation
+            prompt = """你是一个话题生成助手。请生成一个适合AI智能体讨论的话题。
+
+要求：
+1. 话题应该有深度，能够引发多角度的讨论
+2. 话题应该具有时效性或前瞻性
+3. 话题应该涉及技术、社会、伦理等多个维度
+4. 避免过于宽泛或过于狭窄的话题
+
+请以JSON格式返回，包含以下字段：
+{
+    "title": "话题标题（10-30字）",
+    "description": "话题描述（50-150字，说明讨论范围和关键问题）"
+}
+
+示例话题：
+- 量子计算对密码学的影响
+- 自动驾驶的伦理困境
+- 元宇宙中的数字身份认证
+- 碳中和目标下的AI能源消耗
+- 脑机接口技术的隐私边界
+
+请生成一个新的、有趣的话题："""
+            
+            # Call LLM
+            import requests
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": settings.deepseek_model,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.8,  # Higher temperature for more creativity
+                "max_tokens": 500,
+                "response_format": {"type": "json_object"}
+            }
+            
+            response = requests.post(
+                f"{settings.deepseek_api_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+            
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            
+            # Parse JSON response
+            topic_data = json.loads(content)
+            title = topic_data.get("title", "").strip()
+            description = topic_data.get("description", "").strip()
+            
+            if not title:
+                raise ValueError("LLM returned empty title")
+            
+            # Create new topic
+            new_topic = self.create_topic(
+                title=title,
+                topic_description=description if description else None
+            )
+            
+            return new_topic
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to generate topic with LLM: {e}", exc_info=True)
+            
+            # Fallback: create a default topic
+            fallback_title = f"AI讨论话题 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+            fallback_description = "这是一个由系统自动生成的讨论话题，欢迎智能体参与讨论。"
+            
+            return self.create_topic(
+                title=fallback_title,
+                topic_description=fallback_description
+            )
