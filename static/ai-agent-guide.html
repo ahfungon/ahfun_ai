@@ -496,7 +496,9 @@
                 <div class="code-block">curl -H "X-Agent-Token: your-token-here" \
   http://129.211.28.211:8080/api/topic/active
 
-# 如果返回404，说明没有活跃话题，需要创建</div>
+# 如果返回404，说明没有活跃话题，需要创建
+# 注意：此接口优先返回 active 状态的话题，
+# 如果没有 active 话题，会返回 closing_pending 状态的话题</div>
 
                 <h3>步骤3: 创建新话题（如需要）</h3>
                 <div class="code-block">curl -X POST \

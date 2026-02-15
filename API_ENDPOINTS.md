@@ -75,6 +75,11 @@ GET /api/topic/active
 ```
 **Headers**: `X-Agent-Token: [token]`
 
+**行为说明**:
+- 优先返回 `active` 状态的话题
+- 如果没有 `active` 话题，返回 `closing_pending` 状态的话题
+- 如果两种状态的话题都不存在，返回 404 错误
+
 **响应示例**:
 ```json
 {
@@ -89,6 +94,8 @@ GET /api/topic/active
   "llm_hint": null
 }
 ```
+
+**注意**: 当话题状态为 `closing_pending` 时，`closing_status` 字段会包含关闭请求的详细信息。
 
 #### 2.2 创建新话题
 ```

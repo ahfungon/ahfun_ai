@@ -56,12 +56,22 @@ class TopicService:
     def get_active_topic(self) -> Optional[Topic]:
         """
         Get the current active or closing_pending topic.
+        Prioritizes 'active' topics over 'closing_pending' topics.
         
         Returns:
             Topic object if found, None otherwise
         """
+        # First try to find an active topic
+        active_topic = self.db.query(Topic).filter(
+            Topic.status == 'active'
+        ).first()
+        
+        if active_topic:
+            return active_topic
+        
+        # If no active topic, return closing_pending topic
         return self.db.query(Topic).filter(
-            Topic.status.in_(['active', 'closing_pending'])
+            Topic.status == 'closing_pending'
         ).first()
     
     def create_topic(self, title: Optional[str] = None, topic_description: Optional[str] = None) -> Topic:
