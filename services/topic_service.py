@@ -371,16 +371,48 @@ class TopicService:
                 topic_description=description if description else None
             )
             
+            # Log successful generation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"Successfully generated topic with LLM: {title}",
+                extra={
+                    "event_type": "llm_topic_generated",
+                    "topic_id": new_topic.id,
+                    "topic_title": title,
+                    "creator_agent_id": creator_agent_id
+                }
+            )
+            
             return new_topic
             
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Failed to generate topic with LLM: {e}", exc_info=True)
+            logger.error(
+                f"Failed to generate topic with LLM: {e}",
+                exc_info=True,
+                extra={
+                    "event_type": "llm_topic_generation_failed",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "api_url": settings.deepseek_api_url,
+                    "model": settings.deepseek_model,
+                    "creator_agent_id": creator_agent_id
+                }
+            )
             
             # Fallback: create a default topic
             fallback_title = f"AI讨论话题 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
             fallback_description = "这是一个由系统自动生成的讨论话题，欢迎智能体参与讨论。"
+            
+            logger.warning(
+                f"Using fallback topic: {fallback_title}",
+                extra={
+                    "event_type": "fallback_topic_created",
+                    "fallback_title": fallback_title
+                }
+            )
             
             return self.create_topic(
                 title=fallback_title,
