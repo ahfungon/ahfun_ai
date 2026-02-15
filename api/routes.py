@@ -668,3 +668,179 @@ async def register_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to register agent: {str(e)}"
         )
+
+
+# Admin endpoints (no authentication required for monitoring purposes)
+
+class AgentInfo(BaseModel):
+    """Response model for agent information."""
+    agent_id: str
+    agent_name: str
+    auth_token_hash: str
+    created_at: str
+    message_count: int
+
+
+class AgentsListResponse(BaseModel):
+    """Response model for agents list."""
+    agents: list[AgentInfo]
+    total: int
+
+
+class TopicInfo(BaseModel):
+    """Response model for topic information."""
+    topic_id: str
+    title: str
+    status: str
+    message_count: int
+    created_at: str
+    updated_at: str
+
+
+class TopicsListResponse(BaseModel):
+    """Response model for topics list."""
+    topics: list[TopicInfo]
+    total: int
+
+
+@router.get("/admin/agents", response_model=AgentsListResponse)
+async def admin_list_agents(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: List all registered agents.
+    No authentication required for monitoring purposes.
+    
+    Returns:
+        List of all agents with their information
+    """
+    from models.models import Message
+    from sqlalchemy import func
+    
+    # Get all agents with message counts
+    agents_query = db.query(
+        Agent,
+        func.count(Message.id).label('message_count')
+    ).outerjoin(
+        Message, Agent.id == Message.agent_id
+    ).group_by(Agent.id).all()
+    
+    agents_list = [
+        AgentInfo(
+            agent_id=agent.id,
+            agent_name=agent.name,
+            auth_token_hash=agent.auth_token_hash,
+            created_at=agent.created_at.isoformat() if agent.created_at else "",
+            message_count=message_count or 0
+        )
+        for agent, message_count in agents_query
+    ]
+    
+    return AgentsListResponse(
+        agents=agents_list,
+        total=len(agents_list)
+    )
+
+
+@router.get("/admin/topics", response_model=TopicsListResponse)
+async def admin_list_topics(
+    status: Optional[str] = Query(None, description="Filter by status: active, closing_pending, closed"),
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: List all topics.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        status: Optional status filter
+        limit: Maximum number of topics to return
+    
+    Returns:
+        List of topics with their information
+    """
+    from models.models import Topic, Message
+    from sqlalchemy import func, desc
+    
+    # Build query
+    query = db.query(
+        Topic,
+        func.count(Message.id).label('message_count')
+    ).outerjoin(
+        Message, Topic.id == Message.topic_id
+    ).group_by(Topic.id)
+    
+    # Apply status filter if provided
+    if status:
+        query = query.filter(Topic.status == status)
+    
+    # Order by updated_at descending and limit
+    topics_query = query.order_by(desc(Topic.updated_at)).limit(limit).all()
+    
+    topics_list = [
+        TopicInfo(
+            topic_id=topic.id,
+            title=topic.title,
+            status=topic.status,
+            message_count=message_count or 0,
+            created_at=topic.created_at.isoformat() if topic.created_at else "",
+            updated_at=topic.updated_at.isoformat() if topic.updated_at else ""
+        )
+        for topic, message_count in topics_query
+    ]
+    
+    return TopicsListResponse(
+        topics=topics_list,
+        total=len(topics_list)
+    )
+
+
+@router.get("/admin/stats")
+async def admin_get_stats(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Get platform statistics.
+    No authentication required for monitoring purposes.
+    
+    Returns:
+        Platform statistics including counts and metrics
+    """
+    from models.models import Topic, Message
+    from sqlalchemy import func
+    
+    # Count agents
+    agent_count = db.query(func.count(Agent.id)).scalar()
+    
+    # Count topics by status
+    active_topics = db.query(func.count(Topic.id)).filter(Topic.status == "active").scalar()
+    closing_topics = db.query(func.count(Topic.id)).filter(Topic.status == "closing_pending").scalar()
+    closed_topics = db.query(func.count(Topic.id)).filter(Topic.status == "closed").scalar()
+    total_topics = db.query(func.count(Topic.id)).scalar()
+    
+    # Count messages
+    total_messages = db.query(func.count(Message.id)).scalar()
+    
+    # Get active topic info if exists
+    active_topic = db.query(Topic).filter(Topic.status == "active").first()
+    active_topic_info = None
+    if active_topic:
+        active_topic_info = {
+            "topic_id": active_topic.id,
+            "title": active_topic.title,
+            "token_count": active_topic.token_count_since_summary,
+            "end_score": active_topic.end_score,
+            "llm_suggestion": active_topic.llm_suggestion
+        }
+    
+    return {
+        "agents": {
+            "total": agent_count or 0
+        },
+        "topics": {
+            "total": total_topics or 0,
+            "active": active_topics or 0,
+            "closing_pending": closing_topics or 0,
+            "closed": closed_topics or 0
+        },
+        "messages": {
+            "total": total_messages or 0
+        },
+        "active_topic": active_topic_info
+    }
