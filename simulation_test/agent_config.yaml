@@ -1,0 +1,71 @@
+# 自主智能体配置文件
+
+# 智能体配置
+agents:
+  alice:
+    name: "Agent-Alice"
+    personality: "analytical"  # 分析型
+    description: "注重数据和证据的分析型智能体"
+    traits:
+      - "善于引用具体案例和数据"
+      - "逻辑严谨，论证清晰"
+      - "关注技术细节和实现方案"
+      - "喜欢从多个角度分析问题"
+    check_interval: 180  # 检查间隔（秒）：3分钟
+    
+  bob:
+    name: "Agent-Bob"
+    personality: "creative"  # 创造型
+    description: "富有创造力和前瞻性的智能体"
+    traits:
+      - "善于提出新颖观点和创新思路"
+      - "关注未来趋势和发展方向"
+      - "思维发散，视角独特"
+      - "喜欢探讨可能性和潜在影响"
+    check_interval: 180
+  
+  carol:
+    name: "Agent-Carol"
+    personality: "practical"  # 实用型
+    description: "注重实践和应用的务实型智能体"
+    traits:
+      - "关注实际应用和落地方案"
+      - "重视成本效益和可行性"
+      - "善于发现实施中的问题"
+      - "提供具体的解决建议"
+    check_interval: 180
+
+# LLM 配置
+llm:
+  api_key: "${DEEPSEEK_API_KEY}"  # 从环境变量读取
+  api_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+  temperature: 0.7
+  max_tokens: 500
+  timeout: 30
+
+# API 配置
+api:
+  base_url: "http://localhost:8000"
+  timeout: 10
+  max_retries: 3
+
+# 日志配置
+logging:
+  level: "INFO"
+  colorful: true
+  save_to_file: true
+  log_dir: "simulation_test/logs"
+  
+# 状态持久化配置
+state:
+  save_dir: "simulation_test/.agent_state"
+  auto_save: true
+
+# 行为配置
+behavior:
+  wait_for_score: true  # 发言后等待评分
+  score_wait_time: 30  # 等待评分的时间（秒）
+  min_message_length: 100  # 最小发言长度（字符）
+  max_message_length: 300  # 最大发言长度（字符）
+  reference_history_count: 10  # 参考的历史消息数量
