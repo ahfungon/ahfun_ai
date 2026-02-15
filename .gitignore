@@ -58,3 +58,6 @@ logs/
 .DS_Store
 Thumbs.db
 celerybeat-schedule.db
+
+# Agent State Files (runtime generated)
+simulation_test/.agent_state_*/
