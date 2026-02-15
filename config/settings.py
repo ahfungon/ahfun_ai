@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         default="https://api.deepseek.com/v1",
         description="DeepSeek API endpoint"
     )
+    deepseek_model: str = Field(
+        default="deepseek-chat",
+        description="DeepSeek model name"
+    )
     
     # Summary Configuration
     summary_threshold: int = Field(
