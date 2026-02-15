@@ -1,9 +1,10 @@
-.PHONY: help install test test-llm test-quick test-stress clean
+.PHONY: help install verify test test-llm test-quick test-stress clean
 
 help:
 	@echo "增强版智能体模拟器 - 可用命令:"
 	@echo ""
 	@echo "  make install      - 安装依赖"
+	@echo "  make verify       - 验证 LLM 配置"
 	@echo "  make test         - 运行基础测试（预设回复）"
 	@echo "  make test-llm     - 运行 LLM 测试（需要 API 密钥）"
 	@echo "  make test-quick   - 快速测试（5轮）"
@@ -17,14 +18,19 @@ install:
 	pip install tiktoken pyyaml
 	@echo "✓ 依赖安装完成"
 
+verify:
+	@echo "验证 LLM 配置..."
+	@python verify_llm_config.py
+
 test:
 	@echo "运行基础测试..."
 	python enhanced_simulator.py --rounds 10
 
 test-llm:
 	@echo "运行 LLM 测试..."
-	@if [ -z "$$OPENAI_API_KEY" ]; then \
-		echo "错误: 请设置 OPENAI_API_KEY 环境变量"; \
+	@if [ -z "$$DEEPSEEK_API_KEY" ] && [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "错误: 请设置 DEEPSEEK_API_KEY 或 OPENAI_API_KEY 环境变量"; \
+		echo "推荐: export DEEPSEEK_API_KEY='your-key'"; \
 		exit 1; \
 	fi
 	python enhanced_simulator.py --use-llm --rounds 10
