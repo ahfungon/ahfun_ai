@@ -250,6 +250,130 @@
             .main-content {
                 grid-template-columns: 1fr;
             }
+
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .panel {
+                border-radius: 8px;
+            }
+
+            .panel-body {
+                padding: 15px;
+            }
+
+            .messages-container {
+                height: 400px;
+            }
+
+            .message {
+                padding: 10px;
+                margin-bottom: 12px;
+            }
+
+            .message-header {
+                font-size: 11px;
+            }
+
+            .message-content {
+                font-size: 14px;
+            }
+
+            .topic-info .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 8px 0;
+            }
+
+            .info-label {
+                font-size: 12px;
+                margin-bottom: 4px;
+            }
+
+            .info-value {
+                font-size: 13px;
+            }
+
+            .summary-box {
+                padding: 12px;
+            }
+
+            .summary-title {
+                font-size: 14px;
+            }
+
+            .summary-content {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .header {
+                padding: 12px 15px;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .auth-section {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .auth-section input,
+            .auth-section .btn {
+                width: 100%;
+            }
+
+            .panel-header {
+                padding: 12px 15px;
+                font-size: 15px;
+            }
+
+            .panel-body {
+                padding: 12px;
+            }
+
+            .messages-container {
+                height: 350px;
+                padding: 8px;
+            }
+
+            .message {
+                padding: 8px;
+                margin-bottom: 10px;
+            }
+
+            .message-header {
+                font-size: 10px;
+                flex-wrap: wrap;
+            }
+
+            .message-content {
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .status-badge {
+                font-size: 11px;
+                padding: 3px 10px;
+            }
         }
     </style>
 </head>
