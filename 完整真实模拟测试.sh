@@ -5,6 +5,13 @@
 
 set -e
 
+# 加载 .env 文件
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "                    🚀 完整真实模拟测试 - 启动脚本"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -16,14 +23,15 @@ if [ -z "$DEEPSEEK_API_KEY" ]; then
     echo "❌ DEEPSEEK_API_KEY 未设置"
     echo ""
     echo "请设置 API Key："
-    echo "  export DEEPSEEK_API_KEY=\"your-api-key\""
+    echo "  方法 1: export DEEPSEEK_API_KEY=\"your-api-key\""
+    echo "  方法 2: 在 .env 文件中配置"
     echo ""
     echo "获取 API Key: https://platform.deepseek.com/"
     exit 1
 else
     KEY_LENGTH=${#DEEPSEEK_API_KEY}
     KEY_PREVIEW="${DEEPSEEK_API_KEY:0:10}...${DEEPSEEK_API_KEY: -4}"
-    echo "✅ DEEPSEEK_API_KEY 已设置"
+    echo "✅ DEEPSEEK_API_KEY 已设置（从 .env 文件加载）"
     echo "   长度: $KEY_LENGTH 字符"
     echo "   预览: $KEY_PREVIEW"
 fi
