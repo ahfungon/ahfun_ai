@@ -24,9 +24,17 @@ else
     echo "警告: pg_dump 未安装，跳过数据库导出"
 fi
 
-# 2. 同步代码到服务器
+# 2. 确保本地文件一致
 echo ""
-echo "[2/5] 同步代码到服务器..."
+echo "[2/6] 确保本地 frontend 和 static 目录的 ai-agent-guide.html 一致..."
+if [ -f "static/ai-agent-guide.html" ]; then
+    cp static/ai-agent-guide.html frontend/ai-agent-guide.html
+    echo "✓ ai-agent-guide.html 已同步到 frontend 目录"
+fi
+
+# 3. 同步代码到服务器
+echo ""
+echo "[3/6] 同步代码到服务器..."
 rsync -avz --progress \
     --exclude 'venv' \
     --exclude '.git' \
@@ -41,9 +49,9 @@ rsync -avz --progress \
 
 echo "代码同步完成"
 
-# 3. 复制环境配置
+# 4. 复制环境配置
 echo ""
-echo "[3/5] 复制环境配置..."
+echo "[4/6] 复制环境配置..."
 if [ -f ".env" ]; then
     scp -i ${SSH_KEY} .env ${SERVER_USER}@${SERVER_IP}:${REMOTE_DIR}/.env
     echo ".env 文件已复制"
@@ -51,9 +59,9 @@ else
     echo "警告: .env 文件不存在，请手动配置"
 fi
 
-# 4. 在服务器上执行部署
+# 5. 在服务器上执行部署
 echo ""
-echo "[4/5] 在服务器上执行部署..."
+echo "[5/6] 在服务器上执行部署..."
 ssh -i ${SSH_KEY} ${SERVER_USER}@${SERVER_IP} << 'ENDSSH'
 set -e
 
@@ -62,6 +70,14 @@ echo "服务器端部署开始"
 echo "=========================================="
 
 cd ~/dual-agent-chat
+
+# 确保 frontend 和 static 目录的 ai-agent-guide.html 一致
+echo ""
+echo "确保 ai-agent-guide.html 在两个位置都存在..."
+if [ -f "static/ai-agent-guide.html" ]; then
+    cp static/ai-agent-guide.html frontend/ai-agent-guide.html
+    echo "✓ ai-agent-guide.html 已同步到 frontend 目录"
+fi
 
 # 检查 Redis
 echo ""
@@ -156,15 +172,29 @@ sudo systemctl status nginx --no-pager -l | head -10
 
 ENDSSH
 
-# 5. 验证部署
+# 6. 验证部署
 echo ""
-echo "[5/5] 验证部署..."
+echo "[6/6] 验证部署..."
 echo ""
 echo "检查 API 健康状态..."
 if curl -s http://${SERVER_IP}:8080/api/health | grep -q "healthy"; then
     echo "✓ API 服务正常"
 else
     echo "✗ API 服务异常，请检查日志"
+fi
+
+echo ""
+echo "检查智能体指南访问..."
+if curl -s -o /dev/null -w "%{http_code}" http://${SERVER_IP}:8080/ai-agent-guide.html | grep -q "200"; then
+    echo "✓ 智能体指南可访问: http://${SERVER_IP}:8080/ai-agent-guide.html"
+else
+    echo "✗ 智能体指南访问异常"
+fi
+
+if curl -s -o /dev/null -w "%{http_code}" http://${SERVER_IP}:8080/static/ai-agent-guide.html | grep -q "200"; then
+    echo "✓ 智能体指南（static）可访问: http://${SERVER_IP}:8080/static/ai-agent-guide.html"
+else
+    echo "✗ 智能体指南（static）访问异常"
 fi
 
 echo ""
@@ -177,6 +207,7 @@ echo "  监控页面: http://${SERVER_IP}:8080/monitor.html"
 echo "  聊天页面: http://${SERVER_IP}:8080/index.html"
 echo "  管理页面: http://${SERVER_IP}:8080/admin.html"
 echo "  历史记录: http://${SERVER_IP}:8080/history.html"
+echo "  智能体指南: http://${SERVER_IP}:8080/ai-agent-guide.html"
 echo "  API 文档: http://${SERVER_IP}:8080/docs"
 echo ""
 echo "查看日志："
