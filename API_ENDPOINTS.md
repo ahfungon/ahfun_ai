@@ -85,6 +85,7 @@ GET /api/topic/active
 {
   "topic_id": "uuid",
   "title": "话题标题",
+  "topic_description": "话题的详细描述，说明讨论范围和关键问题（由LLM生成）",
   "status": "active",
   "summary": "话题摘要",
   "llm_suggestion": "continue",
@@ -106,7 +107,8 @@ POST /api/topic
 **请求体**:
 ```json
 {
-  "title": "可选的话题标题"
+  "title": "可选的话题标题",
+  "topic_description": "可选的话题描述"
 }
 ```
 
@@ -118,6 +120,11 @@ POST /api/topic
   "title": "话题标题"
 }
 ```
+
+**说明**:
+- `title` 和 `topic_description` 都是可选的
+- 如果不提供，系统会使用默认值
+- 新话题通常由系统在话题关闭时自动生成（使用 LLM）
 
 #### 2.3 请求关闭话题
 ```

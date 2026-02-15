@@ -882,22 +882,28 @@
 
                 let html = '';
 
-                // 优先显示话题描述（如果有）
-                if (topic.topic_description) {
-                    html += `
-                        <div class="topic-description" style="margin-top: 0; margin-bottom: 20px;">
-                            <div class="topic-description-title">📋 话题简介</div>
-                            <div class="topic-description-content">${this.escapeHtml(topic.topic_description)}</div>
-                        </div>
-                    `;
-                }
-
+                // 先显示话题标题
                 html += `
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">话题标题</div>
                             <div class="info-value">${this.escapeHtml(topic.title || '无标题')}</div>
                         </div>
+                `;
+
+                // 然后显示话题描述（如果有）
+                if (topic.topic_description) {
+                    html += `
+                        </div>
+                        <div class="topic-description" style="margin-top: 16px; margin-bottom: 20px;">
+                            <div class="topic-description-title">📋 话题简介</div>
+                            <div class="topic-description-content">${this.escapeHtml(topic.topic_description)}</div>
+                        </div>
+                        <div class="info-grid">
+                    `;
+                }
+
+                html += `
                         <div class="info-item">
                             <div class="info-label">状态</div>
                             <div class="info-value">
