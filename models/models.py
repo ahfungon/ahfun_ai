@@ -106,6 +106,7 @@ class Message(Base):
     
     # Relationships
     topic = relationship("Topic", back_populates="messages")
+    relevance_score = relationship("MessageRelevanceScore", back_populates="message", uselist=False)
     
     # Constraints
     __table_args__ = (
@@ -238,3 +239,39 @@ class AuditLog(Base):
     agent_id = Column(String(36), nullable=True)
     details = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MessageRelevanceScore(Base):
+    """
+    MessageRelevanceScore model representing relevance evaluation for messages.
+    
+    Attributes:
+        id: Unique score identifier (UUID)
+        message_id: Foreign key to message
+        topic_id: Foreign key to topic
+        agent_id: Agent who sent the message
+        relevance_score: Relevance score (0-100)
+        evaluation_comment: Brief evaluation comment
+        evaluated_at: Evaluation timestamp
+    """
+    __tablename__ = "message_relevance_scores"
+    
+    id = Column(String(36), primary_key=True)
+    message_id = Column(String(36), ForeignKey("messages.id"), nullable=False, unique=True)
+    topic_id = Column(String(36), ForeignKey("topics.id"), nullable=False)
+    agent_id = Column(String(36), nullable=False)
+    relevance_score = Column(Float, nullable=False)
+    evaluation_comment = Column(Text, nullable=True)
+    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationships
+    message = relationship("Message", back_populates="relevance_score")
+    topic = relationship("Topic", back_populates="relevance_scores")
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint(
+            "relevance_score >= 0 AND relevance_score <= 100",
+            name="check_relevance_score_range"
+        ),
+    )

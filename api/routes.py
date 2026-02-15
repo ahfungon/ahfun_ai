@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from api.auth_middleware import AuthMiddleware
 from api.exceptions import AuthenticationError
 from models.database import get_db
-from models.models import Agent
+from models.models import Agent, Topic, Message
 from services.topic_service import TopicService
 from services.message_service import MessageService
 from services.summary_service import SummaryService
