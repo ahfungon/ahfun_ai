@@ -318,22 +318,26 @@ class SummaryService:
         
         messages_text = "\n".join(formatted_messages)
         
-        prompt = f"""You are a conversation summarization assistant. Please compress the following content into a concise summary.
+        prompt = f"""你是一个对话总结助手。请将以下内容压缩为简洁的中文摘要。
 
-Historical Summary:
-{old_summary if old_summary else "(No previous summary)"}
+【历史总结】
+{old_summary if old_summary else "（暂无历史总结）"}
 
-New Conversation:
+【新对话内容】
 {messages_text}
 
-Please provide:
-1. Updated cumulative summary (preserve key information)
-2. Conversation suggestion (continue/change_angle/suggest_end/force_end)
-3. End score (0-100, higher means more strongly suggest ending)
+请提供：
+1. 更新后的累积总结（保留关键信息，用中文表达）
+2. 对话建议（continue/change_angle/suggest_end/force_end）
+   - continue: 继续当前话题
+   - change_angle: 建议换个角度讨论
+   - suggest_end: 建议结束话题
+   - force_end: 强制结束话题
+3. 结束评分（0-100分，分数越高表示越建议结束）
 
-Respond in json format:
+请以 json 格式返回（summary 必须用中文）：
 {{
-    "summary": "your updated summary here",
+    "summary": "你的中文总结内容",
     "suggestion": "continue|change_angle|suggest_end|force_end",
     "end_score": 0-100
 }}"""
