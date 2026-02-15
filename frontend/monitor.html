@@ -272,6 +272,85 @@
             font-size: 0.9em;
         }
 
+        .message-footer {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .score-excellent {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .score-good {
+            background: rgba(6, 182, 212, 0.15);
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+        }
+
+        .score-fair {
+            background: rgba(251, 191, 36, 0.15);
+            color: var(--accent-gold);
+            border: 1px solid var(--accent-gold);
+        }
+
+        .score-poor {
+            background: rgba(239, 68, 68, 0.15);
+            color: #EF4444;
+            border: 1px solid #EF4444;
+        }
+
+        .score-pending {
+            background: rgba(100, 116, 139, 0.15);
+            color: var(--text-muted);
+            border: 1px solid var(--text-muted);
+        }
+
+        .evaluation-comment {
+            color: var(--text-muted);
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .topic-description {
+            background: rgba(6, 182, 212, 0.05);
+            border: 1px solid var(--accent-cyan);
+            padding: 16px;
+            border-radius: 12px;
+            margin-top: 16px;
+        }
+
+        .topic-description-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .topic-description-content {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
         .message-content pre {
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
@@ -603,16 +682,31 @@
                             <div class="info-value">${topic.token_count_since_summary || 0}</div>
                         </div>
                         <div class="info-item">
+                            <div class="info-label">结束评分</div>
+                            <div class="info-value">${topic.end_score ? topic.end_score.toFixed(1) : '0.0'}</div>
+                        </div>
+                        <div class="info-item">
                             <div class="info-label">LLM 建议</div>
                             <div class="info-value">${topic.llm_suggestion || '无'}</div>
                         </div>
                     </div>
                 `;
 
+                // 显示话题描述
+                if (topic.topic_description) {
+                    html += `
+                        <div class="topic-description">
+                            <div class="topic-description-title">📋 话题描述</div>
+                            <div class="topic-description-content">${this.escapeHtml(topic.topic_description)}</div>
+                        </div>
+                    `;
+                }
+
+                // 显示话题总结
                 if (topic.summary) {
                     html += `
                         <div class="summary-box">
-                            <div class="summary-title">话题总结</div>
+                            <div class="summary-title">💡 话题总结</div>
                             <div class="summary-content">${this.escapeHtml(topic.summary)}</div>
                         </div>
                     `;
@@ -676,6 +770,52 @@
                     const agentName = msg.agent_name || msg.agent_id;
                     const time = new Date(msg.created_at).toLocaleString('zh-CN');
                     
+                    // 评分显示
+                    let scoreHtml = '';
+                    if (msg.relevance_score !== null && msg.relevance_score !== undefined) {
+                        const score = msg.relevance_score;
+                        let scoreClass = 'score-pending';
+                        let scoreLabel = '待评分';
+                        
+                        if (score >= 80) {
+                            scoreClass = 'score-excellent';
+                            scoreLabel = '优秀';
+                        } else if (score >= 60) {
+                            scoreClass = 'score-good';
+                            scoreLabel = '良好';
+                        } else if (score >= 40) {
+                            scoreClass = 'score-fair';
+                            scoreLabel = '一般';
+                        } else {
+                            scoreClass = 'score-poor';
+                            scoreLabel = '较差';
+                        }
+                        
+                        scoreHtml = `
+                            <div class="message-footer">
+                                <span class="score-badge ${scoreClass}">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    ${score.toFixed(1)} 分 · ${scoreLabel}
+                                </span>
+                                ${msg.evaluation_comment ? `<span class="evaluation-comment">${this.escapeHtml(msg.evaluation_comment)}</span>` : ''}
+                            </div>
+                        `;
+                    } else {
+                        scoreHtml = `
+                            <div class="message-footer">
+                                <span class="score-badge score-pending">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    评分中...
+                                </span>
+                            </div>
+                        `;
+                    }
+                    
                     return `
                         <div class="message ${agentClass}">
                             <div class="message-header">
@@ -688,6 +828,7 @@
                                 <span class="message-time">${time}</span>
                             </div>
                             <div class="message-content">${this.renderMarkdown(msg.content)}</div>
+                            ${scoreHtml}
                         </div>
                     `;
                 }).join('');
