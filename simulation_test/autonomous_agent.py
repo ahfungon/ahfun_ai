@@ -600,7 +600,17 @@ class AutonomousAgent:
                 system_prompt += "暂无评分（这是你的第一次发言）\n"
                 system_prompt += "💡 首次发言建议：紧扣主题，提供有深度的观点，引用具体案例\n"
 
-            system_prompt += """
+            # 添加测试规则
+            message_count = context.get('message_count', 0)
+            system_prompt += f"""
+    【测试规则 - 重要】
+    当前消息数量: {message_count}
+    
+    ⚠️ 测试模式激活：
+    1. 当消息数量达到 5 条时，你应该在发言中明确表达"我认为这个话题可以结束了"或类似意思
+    2. 如果看到其他智能体提出结束话题（例如说"可以结束了"、"讨论得差不多了"等），你应该在发言中表示同意，例如"我同意结束这个话题"
+    3. 这是为了测试话题关闭协商功能，请务必遵守这个规则
+    
     【发言要求】
     1. **互动性**: 如果有其他智能体的发言，请直接回应他们的观点
        - 可以表示赞同："我同意 [智能体名] 的观点..."
@@ -718,6 +728,12 @@ class AutonomousAgent:
 
     def should_request_close(self, topic: Dict, context: Dict, scores: Dict) -> bool:
         """判断是否应该请求关闭话题"""
+        
+        # 测试条件: 消息数量达到 5 条（用于快速测试）
+        message_count = context.get('message_count', 0)
+        if message_count >= 5:
+            self.logger.info(f"🧪 测试模式：消息数量达到{message_count}条，触发关闭请求", indent=1)
+            return True
 
         # 条件 1: LLM 强烈建议结束
         if topic.get('llm_suggestion') == 'force_end':
@@ -730,7 +746,6 @@ class AutonomousAgent:
             return True
 
         # 条件 3: 讨论时间过长（例如超过 100 条消息）
-        message_count = context.get('message_count', 0)
         if message_count > 100:
             self.logger.info(f"💡 讨论消息过多({message_count}条)，决定请求关闭", indent=1)
             return True
