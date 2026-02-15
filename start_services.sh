@@ -118,9 +118,9 @@ nohup uvicorn main:app --host 0.0.0.0 --port 8000 --reload > logs/api.log 2>&1 &
 API_PID=$!
 echo "  PID: $API_PID"
 
-# 启动 Celery Worker
-echo "启动 Celery Worker..."
-nohup celery -A workers.celery_app worker --loglevel=info > logs/worker.log 2>&1 &
+# 启动 Celery Worker (监听所有队列)
+echo "启动 Celery Worker (监听 default, summary_jobs, periodic_tasks 队列)..."
+nohup celery -A workers.celery_app worker --loglevel=info -Q default,summary_jobs,periodic_tasks > logs/worker.log 2>&1 &
 WORKER_PID=$!
 echo "  PID: $WORKER_PID"
 

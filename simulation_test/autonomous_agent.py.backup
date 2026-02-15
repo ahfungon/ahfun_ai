@@ -259,7 +259,7 @@ class AutonomousAgent:
 
     
     def discover_topic(self) -> Optional[Dict]:
-        """发现活跃话题（增强版：包含总结分析）"""
+        """发现活跃话题"""
         try:
             self.logger.discover("发现活跃话题...")
             
@@ -274,32 +274,6 @@ class AutonomousAgent:
                 self.logger.info(f"描述: {desc[:80]}{'...' if len(desc) > 80 else ''}", indent=1)
             
             self.logger.info(f"Token计数: {topic.get('token_count_since_summary', 0)}", indent=1)
-            
-            # 显示当前总结
-            if topic.get('summary'):
-                summary = topic['summary']
-                self.logger.info("", indent=1)
-                self.logger.info("【当前总结】", indent=1)
-                summary_preview = summary[:150].replace('\n', ' ')
-                self.logger.info(f"{summary_preview}{'...' if len(summary) > 150 else ''}", indent=1)
-            
-            # 显示 LLM 建议和策略提示
-            if topic.get('llm_suggestion'):
-                suggestion = topic['llm_suggestion']
-                end_score = topic.get('end_score', 0)
-                
-                self.logger.info("", indent=1)
-                self.logger.info(f"💡 LLM建议: {suggestion} (评分: {end_score}/100)", indent=1)
-                
-                # 根据建议给出策略提示
-                if suggestion == 'force_end':
-                    self.logger.warning("⚠️  话题即将强制关闭，建议发表总结性观点", indent=1)
-                elif suggestion == 'suggest_end' and end_score >= 80:
-                    self.logger.info("💡 话题讨论较充分，可以总结或提出新方向", indent=1)
-                elif suggestion == 'change_angle':
-                    self.logger.info("💡 建议从新角度切入讨论", indent=1)
-                elif suggestion == 'continue':
-                    self.logger.info("💡 继续深入讨论当前方向", indent=1)
             
             return topic
         
@@ -327,21 +301,8 @@ class AutonomousAgent:
             self.logger.error(f"获取消息失败: {e}")
             return []
     
-    def get_topic_summary_history(self, topic_id: str, limit: int = 3) -> List[Dict]:
-        """获取话题总结历史"""
-        try:
-            response = self._make_request(
-                "GET",
-                f"/api/topic/{topic_id}/summary-history",
-                params={"limit": limit}
-            )
-            return response.json().get("history", [])
-        except Exception as e:
-            self.logger.warning(f"获取总结历史失败: {e}")
-            return []
-    
     def analyze_context(self, topic: Dict, messages: List[Dict]) -> Dict:
-            """分析话题上下文（增强版：包含总结历史）"""
+            """分析话题上下文"""
             self.logger.analyze("分析话题上下文...")
 
             # 提取讨论要点
@@ -373,30 +334,6 @@ class AutonomousAgent:
                     key_points.append(point)
 
             self.logger.success(f"获取最近{len(messages)}条消息", indent=1)
-            
-            # 获取总结历史
-            summary_history = []
-            if topic.get('topic_id'):
-                summary_history = self.get_topic_summary_history(topic['topic_id'], limit=3)
-                
-                if summary_history:
-                    self.logger.info("", indent=1)
-                    self.logger.info(f"【总结历史】找到 {len(summary_history)} 条记录", indent=1)
-                    
-                    # 显示最新总结
-                    latest = summary_history[0]
-                    summary_preview = latest['summary'][:100].replace('\n', ' ')
-                    self.logger.info(f"最新: {summary_preview}...", indent=1)
-                    self.logger.info(f"评分: {latest['end_score']}/100", indent=1)
-                    
-                    # 分析讨论深度变化
-                    if len(summary_history) >= 2:
-                        score_change = summary_history[0]['end_score'] - summary_history[-1]['end_score']
-                        if score_change > 20:
-                            self.logger.info(f"💡 讨论深度显著提升 (+{score_change:.1f}分)", indent=1)
-                        elif score_change > 0:
-                            self.logger.info(f"💡 讨论在逐步深入 (+{score_change:.1f}分)", indent=1)
-            
             self.logger.info("", indent=1)
 
             if key_points:
@@ -416,9 +353,7 @@ class AutonomousAgent:
                 "recent_speakers": list(recent_speakers),
                 "recent_messages": recent_messages,
                 "other_agents": other_agents,
-                "message_count": len(messages),
-                "summary_history": summary_history,
-                "discussion_depth": summary_history[0]['end_score'] if summary_history else 0
+                "message_count": len(messages)
             }
 
     
@@ -470,7 +405,7 @@ class AutonomousAgent:
 
     
     def generate_response(self, topic: Dict, context: Dict, scores: Dict) -> Tuple[str, int]:
-            """使用 LLM 生成回复（增强版：整合总结、评分、建议）"""
+            """使用 LLM 生成回复"""
             self.logger.think("LLM推理中...")
             self.logger.info(f"使用模型: {self.llm.model}", indent=1)
             self.logger.info(f"性格特征: {self.agent_config['personality']}", indent=1)
@@ -478,7 +413,6 @@ class AutonomousAgent:
             my_name = self.agent_config['name']
             other_agents = context.get('other_agents', [])
             recent_messages = context.get('recent_messages', [])
-            summary_history = context.get('summary_history', [])
 
             # 构建系统提示
             system_prompt = f"""你是 {my_name}，一个{self.agent_config['description']}。
@@ -489,55 +423,7 @@ class AutonomousAgent:
     【话题信息】
     标题: {topic['title']}
     描述: {topic.get('topic_description', '无')}
-    """
 
-            # 添加话题总结（如果有）
-            if topic.get('summary'):
-                system_prompt += f"""
-    【话题总结】
-    {topic['summary']}
-    """
-
-            # 添加 LLM 建议和策略指导
-            if topic.get('llm_suggestion'):
-                suggestion = topic['llm_suggestion']
-                end_score = topic.get('end_score', 0)
-
-                system_prompt += f"""
-    【系统建议】
-    当前建议: {suggestion}
-    讨论深度评分: {end_score}/100
-
-    策略指导：
-    """
-                if suggestion == 'force_end':
-                    system_prompt += "- 话题即将结束，请发表总结性观点，回顾关键讨论点\n"
-                elif suggestion == 'suggest_end' and end_score >= 80:
-                    system_prompt += "- 话题讨论较充分，可以总结核心观点或提出新的研究方向\n"
-                elif suggestion == 'change_angle':
-                    system_prompt += "- 当前角度已充分讨论，建议从新的维度或视角切入\n"
-                elif suggestion == 'continue':
-                    system_prompt += "- 继续深入当前讨论方向，可以提供更多案例或深化分析\n"
-
-            # 添加总结历史（如果有）
-            if summary_history and len(summary_history) > 1:
-                system_prompt += f"""
-    【讨论演进】
-    """
-                # 显示第一条和最新一条的对比
-                first_summary = summary_history[-1]
-                latest_summary = summary_history[0]
-
-                system_prompt += f"初期讨论: {first_summary['summary'][:150]}...\n"
-                system_prompt += f"当前讨论: {latest_summary['summary'][:150]}...\n"
-
-                score_change = latest_summary['end_score'] - first_summary['end_score']
-                if score_change > 20:
-                    system_prompt += f"💡 讨论深度显著提升 (+{score_change:.1f}分)，继续保持深度\n"
-                elif score_change > 0:
-                    system_prompt += f"💡 讨论在逐步深入 (+{score_change:.1f}分)，可以进一步深化\n"
-
-            system_prompt += """
     【当前讨论参与者】
     """
 
@@ -561,44 +447,16 @@ class AutonomousAgent:
             else:
                 system_prompt += "（这是话题的开始，还没有其他发言）\n"
 
-            # 添加评分反馈和改进建议
             system_prompt += "\n【你的评分历史】\n"
 
             avg_score = scores.get('average_score')
             if avg_score:
                 system_prompt += f"平均分: {avg_score:.1f}/100\n"
-
-                # 根据评分给出具体建议
-                if avg_score >= 90:
-                    system_prompt += "✨ 评分优秀！继续保持：\n"
-                    system_prompt += "  - 保持高质量的论述和数据支撑\n"
-                    system_prompt += "  - 继续提出创新视角\n"
-                    system_prompt += "  - 可以更大胆地提出前瞻性观点\n"
-                elif avg_score >= 80:
-                    system_prompt += "👍 评分良好！可以提升：\n"
-                    system_prompt += "  - 增加更多具体案例和数据\n"
-                    system_prompt += "  - 深化分析的逻辑链条\n"
-                    system_prompt += "  - 提出更具体的实施建议\n"
-                elif avg_score >= 60:
-                    system_prompt += "📈 评分中等，需要改进：\n"
-                    system_prompt += "  - 更紧密地扣住话题核心\n"
-                    system_prompt += "  - 提供更多事实和数据支撑\n"
-                    system_prompt += "  - 避免泛泛而谈，增加深度\n"
-                else:
-                    system_prompt += "⚠️  评分偏低，重点改进：\n"
-                    system_prompt += "  - 仔细阅读话题要求和总结\n"
-                    system_prompt += "  - 确保发言紧扣主题\n"
-                    system_prompt += "  - 提供清晰的论述和论据\n"
-
-                # 添加最近的评论
                 recent_scores = scores.get('recent_scores', [])
                 if recent_scores and recent_scores[0].get('comment'):
-                    latest_comment = recent_scores[0]['comment']
-                    system_prompt += f"\n最近评论: {latest_comment}\n"
-                    system_prompt += "💡 请根据这个评论调整你的发言风格\n"
+                    system_prompt += f"最近评论: {recent_scores[0]['comment']}\n"
             else:
                 system_prompt += "暂无评分（这是你的第一次发言）\n"
-                system_prompt += "💡 首次发言建议：紧扣主题，提供有深度的观点，引用具体案例\n"
 
             system_prompt += """
     【发言要求】
@@ -623,14 +481,12 @@ class AutonomousAgent:
        - 创造型: 提出创新视角
        - 实用型: 关注实际应用
 
-    5. **避免重复**: 查看话题总结，避免重复已充分讨论的内容
+    5. **长度**: 150-250字，使用中文
 
-    6. **长度**: 150-250字，使用中文
-
-    7. **自然对话**: 像真实的讨论一样，不要生硬地列举观点
+    6. **自然对话**: 像真实的讨论一样，不要生硬地列举观点
     """
 
-            user_prompt = "请生成你的发言，记住要直接回应其他智能体的观点，并根据评分反馈优化你的发言风格："
+            user_prompt = "请生成你的发言，记住要直接回应其他智能体的观点："
 
             # 调用 LLM
             content, tokens = self.llm.generate(system_prompt, user_prompt)
@@ -680,106 +536,6 @@ class AutonomousAgent:
         except Exception as e:
             self.logger.error(f"发送消息失败: {e}", indent=1)
             return None
-    def request_close_topic(self, topic_id: str) -> Optional[Dict]:
-        """请求关闭话题"""
-        try:
-            response = self._make_request(
-                "POST",
-                f"/api/topic/{topic_id}/request-close"
-            )
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"请求关闭失败: {e}")
-            return None
-
-    def cancel_close_request(self, topic_id: str) -> Optional[Dict]:
-        """取消关闭请求"""
-        try:
-            response = self._make_request(
-                "POST",
-                f"/api/topic/{topic_id}/cancel-close"
-            )
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"取消关闭失败: {e}")
-            return None
-    def reject_close_request(self, topic_id: str) -> Optional[Dict]:
-        """拒绝关闭请求"""
-        try:
-            response = self._make_request(
-                "POST",
-                f"/api/topic/{topic_id}/reject-close"
-            )
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"拒绝关闭失败: {e}")
-            return None
-
-
-    def should_request_close(self, topic: Dict, context: Dict, scores: Dict) -> bool:
-        """判断是否应该请求关闭话题"""
-
-        # 条件 1: LLM 强烈建议结束
-        if topic.get('llm_suggestion') == 'force_end':
-            self.logger.info("💡 LLM建议强制结束，决定请求关闭", indent=1)
-            return True
-
-        # 条件 2: 讨论深度很高且建议结束
-        if topic.get('llm_suggestion') == 'suggest_end' and topic.get('end_score', 0) >= 85:
-            self.logger.info(f"💡 讨论深度高({topic.get('end_score')}/100)且建议结束，决定请求关闭", indent=1)
-            return True
-
-        # 条件 3: 讨论时间过长（例如超过 100 条消息）
-        message_count = context.get('message_count', 0)
-        if message_count > 100:
-            self.logger.info(f"💡 讨论消息过多({message_count}条)，决定请求关闭", indent=1)
-            return True
-
-        # 条件 4: 自己的评分持续下降（说明话题已经没有新内容）
-        recent_scores = scores.get('recent_scores', [])
-        if len(recent_scores) >= 3:
-            scores_list = [s['score'] for s in recent_scores[:3]]
-            if all(scores_list[i] > scores_list[i+1] for i in range(len(scores_list)-1)):
-                # 评分持续下降
-                self.logger.info("💡 评分持续下降，话题可能已无新内容，决定请求关闭", indent=1)
-                return True
-
-        return False
-
-    def should_agree_to_close(self, topic: Dict) -> bool:
-        """判断是否应该同意对方的关闭请求"""
-        llm_suggestion = topic.get('llm_suggestion')
-        end_score = topic.get('end_score', 0)
-        
-        # 条件 1: LLM 强烈建议结束
-        if llm_suggestion == 'force_end':
-            self.logger.info("💡 LLM建议强制结束，同意关闭", indent=1)
-            return True
-        
-        # 条件 2: 讨论深度很高且建议结束
-        if llm_suggestion == 'suggest_end' and end_score >= 85:
-            self.logger.info(f"💡 讨论深度高({end_score}/100)且建议结束，同意关闭", indent=1)
-            return True
-        
-        return False
-    
-    def should_reject_close(self, topic: Dict) -> bool:
-        """判断是否应该拒绝对方的关闭请求"""
-        llm_suggestion = topic.get('llm_suggestion')
-        
-        # 条件 1: LLM 建议继续讨论
-        if llm_suggestion == 'continue':
-            self.logger.info("💡 LLM建议继续讨论，拒绝关闭", indent=1)
-            return True
-        
-        # 条件 2: LLM 建议换角度（说明还有讨论空间）
-        if llm_suggestion == 'change_angle':
-            self.logger.info("💡 LLM建议换角度讨论，拒绝关闭", indent=1)
-            return True
-        
-        return False
-
-
 
     
     def run_cycle(self):
@@ -792,7 +548,6 @@ class AutonomousAgent:
                 return
             
             topic_id = topic['topic_id']
-            topic_status = topic.get('status')
             
             # 2. 获取消息
             messages = self.get_messages(topic_id, limit=10)
@@ -803,62 +558,10 @@ class AutonomousAgent:
             # 4. 查看评分
             scores = self.check_my_scores()
             
-            # 5. 处理 closing_pending 状态
-            if topic_status == 'closing_pending':
-                requester_id = topic.get('closing_requested_by')
-                my_agent_id = self.state.get('agent_id')
-                
-                if requester_id == my_agent_id:
-                    # 我是请求方，检查是否要取消
-                    if topic.get('llm_suggestion') == 'continue':
-                        self.logger.info("")
-                        self.logger.warning("🔄 LLM建议继续，决定取消关闭请求")
-                        result = self.cancel_close_request(topic_id)
-                        if result:
-                            self.logger.success("已取消关闭请求，话题恢复活跃", indent=1)
-                    else:
-                        self.logger.info("")
-                        self.logger.info("⏳ 等待对方响应关闭请求...")
-                        # 继续正常发言
-                else:
-                    # 对方是请求方，我需要决定同意还是拒绝
-                    if self.should_agree_to_close(topic):
-                        self.logger.info("")
-                        self.logger.info("🤝 对方请求关闭，我同意")
-                        result = self.request_close_topic(topic_id)
-                        if result and result.get('both_agreed'):
-                            self.logger.success("话题已关闭（双方同意）", indent=1)
-                            return
-                        else:
-                            self.logger.info("已表示同意关闭", indent=1)
-                    elif self.should_reject_close(topic):
-                        self.logger.info("")
-                        self.logger.warning("❌ 对方请求关闭，但我认为应该继续")
-                        result = self.reject_close_request(topic_id)
-                        if result:
-                            self.logger.success("已拒绝关闭请求，话题恢复活跃", indent=1)
-                    else:
-                        self.logger.info("")
-                        self.logger.info("🤔 对方请求关闭，我还在考虑...")
-                        # 暂时不做决定，继续发言
-            
-            # 6. 检查是否应该请求关闭（仅在 active 状态）
-            if topic_status == 'active' and self.should_request_close(topic, context, scores):
-                self.logger.info("")
-                self.logger.warning("🛑 决定请求关闭话题")
-                result = self.request_close_topic(topic_id)
-                
-                if result:
-                    if result.get('both_agreed'):
-                        self.logger.success("话题已关闭（双方同意）", indent=1)
-                        return
-                    else:
-                        self.logger.info("已请求关闭，等待对方响应", indent=1)
-            
-            # 7. 生成回复
+            # 5. 生成回复
             content, tokens = self.generate_response(topic, context, scores)
             
-            # 8. 发送消息
+            # 6. 发送消息
             result = self.send_message(topic_id, content, tokens)
             
             if result and self.config['behavior'].get('wait_for_score'):

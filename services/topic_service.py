@@ -193,33 +193,39 @@ class TopicService:
         topic.updated_at = datetime.utcnow()
         
         self.db.commit()
+    def reject_close_request(self, topic_id: str, agent_id: str) -> None:
+        """
+        Reject a close request from another agent.
+
+        Args:
+            topic_id: ID of the topic
+            agent_id: ID of the agent rejecting the request
+
+        Raises:
+            ValueError: If topic not found or not in closing_pending state
+        """
+        topic = self.db.query(Topic).filter(Topic.id == topic_id).first()
+        if not topic:
+            raise ValueError(f"Topic {topic_id} not found")
+
+        if topic.status != "closing_pending":
+            raise ValueError("Topic is not in closing_pending state")
+
+        # Only the agent who didn't request can reject
+        if topic.closing_requested_by == agent_id:
+            raise ValueError("Cannot reject your own close request")
+
+        # Reset closing state - return to active
+        topic.agent_a_wants_close = False
+        topic.agent_b_wants_close = False
+        topic.closing_requested_by = None
+        topic.closing_requested_at = None
+        topic.status = "active"
+        topic.updated_at = datetime.utcnow()
+
+        self.db.commit()
+
     
-    def check_closing_timeout(self) -> List[str]:
-        """
-        Check all closing_pending topics for timeout and close them if needed.
-        
-        Returns:
-            List of topic IDs that were closed due to timeout
-        """
-        timeout_seconds = settings.closing_timeout
-        timeout_threshold = datetime.utcnow() - timedelta(seconds=timeout_seconds)
-        
-        # Find all closing_pending topics that have timed out
-        timed_out_topics = self.db.query(Topic).filter(
-            Topic.status == "closing_pending",
-            Topic.closing_requested_at <= timeout_threshold
-        ).all()
-        
-        closed_topic_ids = []
-        for topic in timed_out_topics:
-            topic.status = "closed"
-            topic.updated_at = datetime.utcnow()
-            closed_topic_ids.append(topic.id)
-        
-        if closed_topic_ids:
-            self.db.commit()
-        
-        return closed_topic_ids
     
     def get_closing_status(self, topic_id: str) -> ClosingStatusDetail:
         """

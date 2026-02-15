@@ -239,7 +239,7 @@ async def monitor_topic_messages(
                 agent_id=msg.agent_id,
                 agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
-                created_at=msg.created_at.isoformat() if msg.created_at else "",
+                created_at=msg.created_at.isoformat() + 'Z' if msg.created_at else "",
                 relevance_score=score_map[msg.id].relevance_score if msg.id in score_map else None,
                 evaluation_comment=score_map[msg.id].evaluation_comment if msg.id in score_map else None
             )
@@ -360,7 +360,7 @@ async def get_topic_messages(
                 agent_id=msg.agent_id,
                 agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
-                created_at=msg.created_at.isoformat(),
+                created_at=msg.created_at.isoformat() + 'Z',
                 relevance_score=score_map[msg.id].relevance_score if msg.id in score_map else None,
                 evaluation_comment=score_map[msg.id].evaluation_comment if msg.id in score_map else None
             )
@@ -457,6 +457,31 @@ async def cancel_close_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+@router.post("/topic/{topic_id}/reject-close")
+async def reject_close_request(
+    topic_id: str,
+    db: Session = Depends(get_db),
+    agent: Agent = Depends(get_current_agent)
+):
+    """
+    Reject a close request for a topic.
+
+    Only the agent who didn't request close can reject it.
+    This will return the topic to active status.
+    """
+    topic_service = TopicService(db)
+
+    try:
+        topic_service.reject_close_request(topic_id, agent.id)
+
+        return {"status": "success", "message": "Close request rejected, topic is now active"}
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
 
 
 @router.post("/topic", response_model=CreateTopicResponse)
@@ -514,7 +539,7 @@ async def get_summary_history(
                 summary=h.summary,
                 llm_suggestion=h.llm_suggestion,
                 end_score=h.end_score,
-                created_at=h.created_at.isoformat()
+                created_at=h.created_at.isoformat() + 'Z'
             )
             for h in history
         ]
@@ -798,7 +823,7 @@ async def admin_list_agents(db: Session = Depends(get_db)):
             agent_id=agent.id,
             agent_name=agent.name,
             auth_token_hash=agent.auth_token_hash,
-            created_at=agent.created_at.isoformat() if agent.created_at else "",
+            created_at=agent.created_at.isoformat() + 'Z' if agent.created_at else "",
             message_count=message_count or 0
         )
         for agent, message_count in agents_query
@@ -851,8 +876,8 @@ async def admin_list_topics(
             title=topic.title,
             status=topic.status,
             message_count=message_count or 0,
-            created_at=topic.created_at.isoformat() if topic.created_at else "",
-            updated_at=topic.updated_at.isoformat() if topic.updated_at else ""
+            created_at=topic.created_at.isoformat() + 'Z' if topic.created_at else "",
+            updated_at=topic.updated_at.isoformat() + 'Z' if topic.updated_at else ""
         )
         for topic, message_count in topics_query
     ]
@@ -909,8 +934,8 @@ async def admin_get_topic_detail(
         "token_count_since_summary": topic.token_count_since_summary,
         "message_count": message_count,
         "average_relevance_score": float(avg_score) if avg_score else None,
-        "created_at": topic.created_at.isoformat() if topic.created_at else None,
-        "updated_at": topic.updated_at.isoformat() if topic.updated_at else None
+        "created_at": topic.created_at.isoformat() + 'Z' if topic.created_at else None,
+        "updated_at": topic.updated_at.isoformat() + 'Z' if topic.updated_at else None
     }
 
 
