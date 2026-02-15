@@ -476,6 +476,183 @@
                 height: 500px;
             }
         }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: var(--glow-purple);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 24px;
+            background: rgba(139, 92, 246, 0.05);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+            max-height: calc(85vh - 100px);
+            overflow-y: auto;
+        }
+
+        .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-body::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+
+        .modal-body::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-primary);
+        }
+
+        .history-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .history-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--glow-purple);
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .history-item-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .history-item-date {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            margin-left: 16px;
+        }
+
+        .history-item-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .history-item-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .history-item-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-view-topic {
+            margin-top: 12px;
+            padding: 8px 16px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-view-topic:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -487,6 +664,13 @@
             实时监控
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn-theme" onclick="monitor.showHistoryModal()" title="查看历史话题">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>历史</span>
+            </button>
             <button class="btn-theme" onclick="monitor.toggleTheme()" title="切换主题">
                 <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
                     <circle cx="12" cy="12" r="5"></circle>
@@ -548,6 +732,37 @@
                             </svg>
                             <div>正在加载...</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史话题模态框 -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    历史话题
+                </div>
+                <button class="modal-close" onclick="monitor.closeHistoryModal()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="historyList">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <div>正在加载...</div>
                     </div>
                 </div>
             </div>
@@ -665,7 +880,19 @@
                     'closed': '已关闭'
                 }[topic.status] || topic.status;
 
-                let html = `
+                let html = '';
+
+                // 优先显示话题描述（如果有）
+                if (topic.topic_description) {
+                    html += `
+                        <div class="topic-description" style="margin-top: 0; margin-bottom: 20px;">
+                            <div class="topic-description-title">📋 话题简介</div>
+                            <div class="topic-description-content">${this.escapeHtml(topic.topic_description)}</div>
+                        </div>
+                    `;
+                }
+
+                html += `
                     <div class="info-grid">
                         <div class="info-item">
                             <div class="info-label">话题标题</div>
@@ -691,16 +918,6 @@
                         </div>
                     </div>
                 `;
-
-                // 显示话题描述
-                if (topic.topic_description) {
-                    html += `
-                        <div class="topic-description">
-                            <div class="topic-description-title">📋 话题描述</div>
-                            <div class="topic-description-content">${this.escapeHtml(topic.topic_description)}</div>
-                        </div>
-                    `;
-                }
 
                 // 显示话题总结
                 if (topic.summary) {
@@ -844,6 +1061,137 @@
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            },
+
+            showHistoryModal() {
+                document.getElementById('historyModal').classList.add('show');
+                this.loadHistoryTopics();
+            },
+
+            closeHistoryModal() {
+                document.getElementById('historyModal').classList.remove('show');
+            },
+
+            async loadHistoryTopics() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/monitor/topics/closed?limit=20`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    this.displayHistoryTopics(data.topics || []);
+                } catch (error) {
+                    console.error('加载历史话题失败:', error);
+                    document.getElementById('historyList').innerHTML = `
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                            </svg>
+                            <div>加载失败</div>
+                        </div>
+                    `;
+                }
+            },
+
+            displayHistoryTopics(topics) {
+                const container = document.getElementById('historyList');
+                
+                if (!topics || topics.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <div>暂无历史话题</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const html = topics.map(topic => {
+                    const createdDate = new Date(topic.created_at).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const closedDate = topic.updated_at ? new Date(topic.updated_at).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : '';
+
+                    return `
+                        <div class="history-item" onclick="monitor.viewHistoryTopic('${topic.topic_id}')">
+                            <div class="history-item-header">
+                                <div class="history-item-title">${this.escapeHtml(topic.title)}</div>
+                                <div class="history-item-date">${createdDate}</div>
+                            </div>
+                            ${topic.topic_description ? `
+                                <div class="history-item-description">
+                                    ${this.escapeHtml(topic.topic_description.substring(0, 150))}${topic.topic_description.length > 150 ? '...' : ''}
+                                </div>
+                            ` : ''}
+                            <div class="history-item-stats">
+                                <div class="history-item-stat">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    ${topic.message_count || 0} 条消息
+                                </div>
+                                <div class="history-item-stat">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    评分: ${topic.end_score ? topic.end_score.toFixed(1) : '0.0'}
+                                </div>
+                                ${closedDate ? `
+                                    <div class="history-item-stat">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        关闭: ${closedDate}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <button class="btn-view-topic" onclick="event.stopPropagation(); monitor.viewHistoryTopic('${topic.topic_id}')">
+                                查看详情
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = `<div class="history-list">${html}</div>`;
+            },
+
+            async viewHistoryTopic(topicId) {
+                // 关闭模态框
+                this.closeHistoryModal();
+                
+                // 加载该话题的消息
+                this.currentTopicId = topicId;
+                
+                try {
+                    // 加载话题信息
+                    const topicResponse = await fetch(`${this.apiUrl}/monitor/topic/${topicId}`);
+                    if (topicResponse.ok) {
+                        const topic = await topicResponse.json();
+                        this.displayTopic(topic);
+                    }
+                    
+                    // 加载消息
+                    await this.loadMessages();
+                } catch (error) {
+                    console.error('加载历史话题失败:', error);
+                }
             },
 
             startAutoRefresh() {

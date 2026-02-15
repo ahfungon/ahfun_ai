@@ -248,6 +248,92 @@ async def monitor_topic_messages(
     )
 
 
+@router.get("/monitor/topics/closed")
+async def monitor_closed_topics(
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Monitor endpoint: Get list of closed topics without authentication.
+    This endpoint is for monitoring/display purposes only.
+    
+    Args:
+        limit: Maximum number of topics to return (default: 20, max: 100)
+    
+    Returns:
+        List of closed topics ordered by updated_at descending
+    """
+    topics = db.query(Topic).filter(
+        Topic.status == 'closed'
+    ).order_by(Topic.updated_at.desc()).limit(limit).all()
+    
+    # Get message count for each topic
+    topic_data = []
+    for topic in topics:
+        message_count = db.query(Message).filter(Message.topic_id == topic.id).count()
+        topic_data.append({
+            "topic_id": topic.id,
+            "title": topic.title,
+            "topic_description": topic.topic_description,
+            "status": topic.status,
+            "end_score": topic.end_score,
+            "message_count": message_count,
+            "created_at": topic.created_at.isoformat() + 'Z' if topic.created_at else "",
+            "updated_at": topic.updated_at.isoformat() + 'Z' if topic.updated_at else ""
+        })
+    
+    return {"topics": topic_data}
+
+
+@router.get("/monitor/topic/{topic_id}")
+async def monitor_topic_detail(
+    topic_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Monitor endpoint: Get detailed information for a specific topic without authentication.
+    This endpoint is for monitoring/display purposes only.
+    
+    Args:
+        topic_id: Topic ID
+    
+    Returns:
+        Topic information including summary and LLM suggestion
+    """
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+    
+    # Get closing status details if in closing_pending state
+    topic_service = TopicService(db)
+    closing_status = None
+    if topic.status == "closing_pending":
+        closing_status = topic_service.get_closing_status(topic.id)
+    
+    # Get LLM hint if applicable
+    llm_hint = None
+    if topic.llm_suggestion and topic.status != "closing_pending":
+        llm_hint = _get_llm_hint(topic.llm_suggestion)
+    
+    return {
+        "topic_id": topic.id,
+        "title": topic.title,
+        "topic_description": topic.topic_description,
+        "status": topic.status,
+        "summary": topic.summary,
+        "llm_suggestion": topic.llm_suggestion,
+        "llm_hint": llm_hint,
+        "end_score": topic.end_score,
+        "token_count_since_summary": topic.token_count_since_summary,
+        "created_at": topic.created_at.isoformat() + 'Z' if topic.created_at else "",
+        "updated_at": topic.updated_at.isoformat() + 'Z' if topic.updated_at else ""
+    }
+
+
 @router.get("/topic/active", response_model=TopicResponse)
 async def get_active_topic(
     db: Session = Depends(get_db),
