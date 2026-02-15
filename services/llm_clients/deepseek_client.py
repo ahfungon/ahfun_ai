@@ -220,3 +220,95 @@ class DeepSeekClient(BaseLLMClient):
         
         except (KeyError, ValueError) as e:
             raise LLMClientError(f"Failed to parse DeepSeek API response: {str(e)}")
+
+    def evaluate_message_relevance(
+        self,
+        prompt: str,
+        temperature: float = 0.3,
+        max_tokens: Optional[int] = 500
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Evaluate message relevance using DeepSeek API.
+        
+        This method is designed for async scoring and returns None on failure
+        instead of raising exceptions.
+        
+        Args:
+            prompt: Evaluation prompt
+            temperature: Sampling temperature (default: 0.3)
+            max_tokens: Maximum tokens to generate (default: 500)
+        
+        Returns:
+            Dictionary containing:
+                - relevance_score: Score (0-100)
+                - evaluation_comment: Brief comment
+            Returns None if evaluation fails
+        """
+        if not self.api_key:
+            logger.error("DeepSeek API key not configured")
+            return None
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        messages = [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"}
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.api_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"DeepSeek API error (status {response.status_code}): {response.text}")
+                return None
+            
+            data = response.json()
+            
+            if "choices" not in data or not data["choices"]:
+                logger.error("Invalid response format: missing choices")
+                return None
+            
+            content = data["choices"][0].get("message", {}).get("content", "")
+            
+            # Parse JSON response
+            try:
+                parsed_content = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON response: {str(e)}")
+                return None
+            
+            # Extract and validate fields
+            relevance_score = float(parsed_content.get("relevance_score", 0.0))
+            evaluation_comment = parsed_content.get("evaluation_comment", "")
+            
+            # Validate score range
+            if not (0 <= relevance_score <= 100):
+                logger.warning(f"Invalid relevance_score {relevance_score}, clamping to [0, 100]")
+                relevance_score = max(0.0, min(100.0, relevance_score))
+            
+            return {
+                "relevance_score": relevance_score,
+                "evaluation_comment": evaluation_comment
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to evaluate message relevance: {e}", exc_info=True)
+            return None

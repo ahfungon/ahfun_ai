@@ -64,12 +64,13 @@ class TopicService:
             Topic.status.in_(['active', 'closing_pending'])
         ).first()
     
-    def create_topic(self, title: Optional[str] = None) -> Topic:
+    def create_topic(self, title: Optional[str] = None, topic_description: Optional[str] = None) -> Topic:
         """
         Create a new topic with default values.
         
         Args:
             title: Optional topic title. If not provided, generates default title.
+            topic_description: Optional detailed description of the topic scope and guidelines.
         
         Returns:
             Created Topic object
@@ -80,6 +81,7 @@ class TopicService:
         topic = Topic(
             id=str(uuid.uuid4()),
             title=title,
+            topic_description=topic_description,
             status="active",
             summary="",
             llm_suggestion=None,

@@ -448,3 +448,42 @@ def check_closing_timeouts(db_session: Optional[Session] = None):
     finally:
         if should_close_db:
             db.close()
+
+
+@celery_app.task(name="workers.tasks.evaluate_message_relevance")
+def evaluate_message_relevance(message_id: str, topic_id: str, agent_id: str, content: str):
+    """
+    Evaluate message relevance asynchronously using DeepSeek LLM.
+    
+    This task is designed to run in the background without blocking message submission.
+    Failures are logged but do not raise exceptions.
+    
+    Args:
+        message_id: ID of the message to evaluate
+        topic_id: ID of the topic
+        agent_id: ID of the agent who sent the message
+        content: Message content
+    """
+    db = SessionLocal()
+    
+    try:
+        from services.message_scoring_service import MessageScoringService
+        
+        scoring_service = MessageScoringService(db)
+        score = scoring_service.evaluate_message(
+            message_id=message_id,
+            topic_id=topic_id,
+            agent_id=agent_id,
+            content=content
+        )
+        
+        if score:
+            logger.info(f"Message {message_id} evaluated: score={score.relevance_score}")
+        else:
+            logger.warning(f"Failed to evaluate message {message_id}")
+    
+    except Exception as e:
+        logger.error(f"Error evaluating message {message_id}: {e}", exc_info=True)
+    
+    finally:
+        db.close()

@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api", tags=["api"])
 class CreateTopicRequest(BaseModel):
     """Request model for creating a new topic."""
     title: Optional[str] = Field(None, description="Optional topic title")
+    topic_description: Optional[str] = Field(None, description="Optional detailed description of the topic scope and guidelines")
 
 
 class CreateTopicResponse(BaseModel):
@@ -67,6 +68,7 @@ class TopicResponse(BaseModel):
     """Response model for topic information."""
     topic_id: str
     title: str
+    topic_description: Optional[str] = None
     status: str
     summary: str
     llm_suggestion: Optional[str]
@@ -83,6 +85,8 @@ class MessageResponse(BaseModel):
     agent_name: Optional[str] = None
     content: str
     created_at: str
+    relevance_score: Optional[float] = None
+    evaluation_comment: Optional[str] = None
 
 
 class MessagesResponse(BaseModel):
@@ -107,6 +111,12 @@ class SummaryHistoryResponse(BaseModel):
 class RollbackSummaryRequest(BaseModel):
     """Request model for rolling back summary."""
     history_id: str
+
+
+class AgentScoreResponse(BaseModel):
+    """Response model for agent score statistics."""
+    average_score: Optional[float]
+    recent_scores: list[dict]
 
 
 # Dependency for authentication
@@ -259,6 +269,7 @@ async def get_active_topic(
     return TopicResponse(
         topic_id=topic.id,
         title=topic.title,
+        topic_description=topic.topic_description,
         status=topic.status,
         summary=topic.summary,
         llm_suggestion=topic.llm_suggestion,
@@ -299,15 +310,17 @@ async def get_topic_messages(
     agent: Agent = Depends(get_current_agent)
 ):
     """
-    Get recent messages for a topic.
+    Get recent messages for a topic with relevance scores.
     
     Args:
         topic_id: ID of the topic
         limit: Maximum number of messages to return (default 20)
     
     Returns:
-        List of messages sorted by time (oldest to newest)
+        List of messages sorted by time (oldest to newest) with relevance scores
     """
+    from models.models import MessageRelevanceScore
+    
     message_service = MessageService(db)
     messages = message_service.get_messages(topic_id, limit)
     
@@ -316,6 +329,13 @@ async def get_topic_messages(
     agents = db.query(Agent).filter(Agent.id.in_(agent_ids)).all()
     agent_name_map = {agent.id: agent.name for agent in agents}
     
+    # Get relevance scores for all messages
+    message_ids = [msg.id for msg in messages]
+    scores = db.query(MessageRelevanceScore).filter(
+        MessageRelevanceScore.message_id.in_(message_ids)
+    ).all()
+    score_map = {score.message_id: score for score in scores}
+    
     return MessagesResponse(
         messages=[
             MessageResponse(
@@ -323,7 +343,9 @@ async def get_topic_messages(
                 agent_id=msg.agent_id,
                 agent_name=agent_name_map.get(msg.agent_id),
                 content=msg.content,
-                created_at=msg.created_at.isoformat()
+                created_at=msg.created_at.isoformat(),
+                relevance_score=score_map[msg.id].relevance_score if msg.id in score_map else None,
+                evaluation_comment=score_map[msg.id].evaluation_comment if msg.id in score_map else None
             )
             for msg in messages
         ]
@@ -430,13 +452,16 @@ async def create_topic(
     Create a new topic.
     
     Args:
-        request: Topic creation request with optional title
+        request: Topic creation request with optional title and description
     
     Returns:
         Created topic information
     """
     topic_service = TopicService(db)
-    topic = topic_service.create_topic(title=request.title)
+    topic = topic_service.create_topic(
+        title=request.title,
+        topic_description=request.topic_description
+    )
     
     return CreateTopicResponse(
         topic_id=topic.id,
@@ -522,6 +547,34 @@ async def rollback_summary(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+
+
+@router.get("/agent/my-scores", response_model=AgentScoreResponse)
+async def get_my_scores(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    agent: Agent = Depends(get_current_agent)
+):
+    """
+    Get current agent's relevance score statistics.
+    
+    Args:
+        limit: Maximum number of recent scores to return (default: 10, max: 50)
+    
+    Returns:
+        Average score and list of recent scores
+    """
+    from services.message_scoring_service import MessageScoringService
+    
+    scoring_service = MessageScoringService(db)
+    
+    average_score = scoring_service.get_agent_average_score(agent.id)
+    recent_scores = scoring_service.get_agent_recent_scores(agent.id, limit=limit)
+    
+    return AgentScoreResponse(
+        average_score=average_score,
+        recent_scores=recent_scores
+    )
 
 
 @router.get("/health")

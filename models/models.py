@@ -16,6 +16,7 @@ class Topic(Base):
     Attributes:
         id: Unique topic identifier (UUID)
         title: Topic title
+        topic_description: Detailed description of the topic scope and guidelines
         status: Topic status (active, closing_pending, closed)
         summary: Cumulative summary of the discussion
         llm_suggestion: LLM suggestion (continue, change_angle, suggest_end, force_end)
@@ -35,6 +36,7 @@ class Topic(Base):
     
     id = Column(String(36), primary_key=True)
     title = Column(String(255), nullable=False)
+    topic_description = Column(Text, nullable=True)
     status = Column(
         String(20), 
         nullable=False, 
@@ -58,6 +60,7 @@ class Topic(Base):
     messages = relationship("Message", back_populates="topic", cascade="all, delete-orphan")
     summary_jobs = relationship("SummaryJob", back_populates="topic", cascade="all, delete-orphan")
     summary_history = relationship("SummaryHistory", back_populates="topic", cascade="all, delete-orphan")
+    relevance_scores = relationship("MessageRelevanceScore", back_populates="topic", cascade="all, delete-orphan")
     
     # Constraints
     __table_args__ = (

@@ -111,6 +111,15 @@ class MessageService:
                 end_message_id=message.id
             )
         
+        # Trigger async message relevance evaluation
+        from workers.tasks import evaluate_message_relevance
+        evaluate_message_relevance.delay(
+            message_id=message.id,
+            topic_id=topic_id,
+            agent_id=agent_id,
+            content=content
+        )
+        
         return message
     
     def get_messages(self, topic_id: str, limit: int = 20) -> List[Message]:
