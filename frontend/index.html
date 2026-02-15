@@ -290,11 +290,28 @@
             apiUrl: '/api',
             currentTopicId: null,
             refreshInterval: null,
+            userIsScrolling: false,
+            lastScrollPosition: 0,
 
             init() {
                 // 直接加载数据，无需认证
                 this.loadData();
                 this.startAutoRefresh();
+                this.setupScrollDetection();
+            },
+
+            setupScrollDetection() {
+                const container = document.getElementById('messagesContainer');
+                if (!container) return;
+
+                container.addEventListener('scroll', () => {
+                    const currentScroll = container.scrollTop;
+                    const maxScroll = container.scrollHeight - container.clientHeight;
+                    
+                    // 如果用户滚动到距离底部超过50px，认为用户在主动浏览
+                    this.userIsScrolling = (maxScroll - currentScroll) > 50;
+                    this.lastScrollPosition = currentScroll;
+                });
             },
 
 
@@ -440,6 +457,12 @@
                     return;
                 }
 
+                const container = document.getElementById('messagesContainer');
+                
+                // 保存当前滚动位置
+                const wasAtBottom = !this.userIsScrolling;
+                const scrollPosition = container.scrollTop;
+
                 const html = messages.map(msg => {
                     const agentClass = msg.agent_id.includes('agent-1') ? 'agent-1' : 'agent-2';
                     const agentName = msg.agent_name || msg.agent_id;
@@ -456,9 +479,15 @@
                     `;
                 }).join('');
 
-                const container = document.getElementById('messagesContainer');
                 container.innerHTML = html;
-                container.scrollTop = container.scrollHeight;
+                
+                // 只在用户没有主动滚动时才自动滚动到底部
+                if (wasAtBottom) {
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    // 保持用户的滚动位置
+                    container.scrollTop = scrollPosition;
+                }
             },
 
             showError(message, type = 'error') {
