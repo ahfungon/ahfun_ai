@@ -17,6 +17,14 @@ if [ ! -f "main.py" ]; then
     exit 1
 fi
 
+# 加载环境变量
+if [ -f ".env" ]; then
+    echo -e "${GREEN}✓ 加载环境变量 (.env)${NC}"
+    export $(cat .env | grep -v '^#' | xargs)
+else
+    echo -e "${YELLOW}⚠️  未找到 .env 文件，使用默认配置${NC}"
+fi
+
 # 1. 检查 Redis
 echo ""
 echo -e "${YELLOW}[1/6] 检查 Redis 服务...${NC}"

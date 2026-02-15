@@ -24,12 +24,22 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from colorama import Fore, Back, Style, init
+from dotenv import load_dotenv
 
 # 初始化 colorama
 init(autoreset=True)
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+# 加载.env文件
+env_path = os.path.join(project_root, '.env')
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+    print(f"✓ 已加载环境变量: {env_path}")
+else:
+    print(f"⚠️  未找到.env文件: {env_path}")
 
 
 class AgentLogger:
