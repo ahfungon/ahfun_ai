@@ -606,10 +606,10 @@ class AutonomousAgent:
     【测试规则 - 重要】
     当前消息数量: {message_count}
     
-    ⚠️ 测试模式激活：
-    1. 当消息数量达到 5 条时，你应该在发言中明确表达"我认为这个话题可以结束了"或类似意思
+    ⚠️ 快速测试模式激活：
+    1. 当消息数量达到 4 条时（即每个智能体发言 2 次后），你应该在发言中明确表达"我认为这个话题可以结束了"或"讨论得差不多了"
     2. 如果看到其他智能体提出结束话题（例如说"可以结束了"、"讨论得差不多了"等），你应该在发言中表示同意，例如"我同意结束这个话题"
-    3. 这是为了测试话题关闭协商功能，请务必遵守这个规则
+    3. 这是为了快速测试话题关闭和自动生成新话题功能，请务必遵守这个规则
     
     【发言要求】
     1. **互动性**: 如果有其他智能体的发言，请直接回应他们的观点
@@ -729,10 +729,10 @@ class AutonomousAgent:
     def should_request_close(self, topic: Dict, context: Dict, scores: Dict) -> bool:
         """判断是否应该请求关闭话题"""
         
-        # 测试条件: 消息数量达到 5 条（用于快速测试）
+        # 测试条件: 消息数量达到 4 条（每个智能体发言 2 次）
         message_count = context.get('message_count', 0)
-        if message_count >= 5:
-            self.logger.info(f"🧪 测试模式：消息数量达到{message_count}条，触发关闭请求", indent=1)
+        if message_count >= 4:
+            self.logger.info(f"🧪 快速测试模式：消息数量达到{message_count}条，触发关闭请求", indent=1)
             return True
 
         # 条件 1: LLM 强烈建议结束
