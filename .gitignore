@@ -1,63 +1,43 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
 venv/
 env/
 ENV/
-.venv
-
-# Environment Variables
-.env
-.env.local
-
-# Database
-# Note: Using PostgreSQL only, no local database files
+*.egg-info/
+dist/
+build/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.hypothesis/
+# Environment
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Database
+*.db
+*.sqlite
 
 # Celery
 celerybeat-schedule
-celerybeat.pid
+celerybeat-schedule.db
 
-# Logs
-*.log
-logs/
+# Node
+node_modules/
+dist/
+build/
 
 # OS
 .DS_Store
 Thumbs.db
-celerybeat-schedule.db
-
-# Agent State Files (runtime generated)
-simulation_test/.agent_state_*/

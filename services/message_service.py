@@ -100,6 +100,49 @@ class MessageService:
         
         # Refresh message to get committed state
         self.db.refresh(message)
+
+        # Check for close keywords in message content
+        # Auto-handle topic close when agents express intent in messages
+        topic_after = self.db.query(Topic).filter(Topic.id == topic_id).first()
+        
+        # Keywords for requesting close
+        request_close_keywords = ['建议结束', '可以结束了', '讨论得差不多了', '已经充分讨论', '达成共识', '没有更多要补充', '请求结束', '终止讨论']
+        
+        # Keywords for agreeing to close
+        agree_close_keywords = ['同意', '赞成', '可以结束', '没问题', '确实该结束了', '同意结束', '赞成的', '可以关闭', '没问题了']
+        
+        if topic_after and topic_after.status == "closing_pending":
+            # Topic is waiting for close agreement - check if this agent agrees
+            if topic_after.closing_requested_by != agent_id:
+                content_lower = content.lower()
+                for keyword in agree_close_keywords:
+                    if keyword in content_lower:
+                        # Auto-agree to close
+                        topic_after.agent_b_wants_close = True
+                        topic_after.status = "closed"
+                        topic_after.updated_at = datetime.utcnow()
+                        self.db.commit()
+                        
+                        # Trigger new topic generation
+                        from workers.tasks import generate_new_topic
+                        generate_new_topic.apply_async(args=[agent_id], countdown=2)
+                        break
+        elif topic_after and topic_after.status == "active":
+            # Check if message contains request close keywords
+            content_lower = content.lower()
+            for keyword in request_close_keywords:
+                if keyword in content_lower:
+                    # Auto-request close
+                    if not topic_after.agent_a_wants_close and not topic_after.agent_b_wants_close:
+                        topic_after.agent_a_wants_close = True
+                        topic_after.closing_requested_by = agent_id
+                        topic_after.closing_requested_at = datetime.utcnow()
+                        topic_after.status = "closing_pending"
+                        topic_after.updated_at = datetime.utcnow()
+                        self.db.commit()
+                    break
+
+
         
         # Trigger summary job outside transaction (async operation)
         if should_trigger_summary:
