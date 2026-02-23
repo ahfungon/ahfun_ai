@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Auto Retry on Error",
+  "description": "任务执行完成后，自动检查是否有错误或失败，如果有则尝试修复并重试",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "检查刚才的任务执行结果。如果发现有错误、失败或未完成的部分，请分析原因并自动重试修复。如果一切正常，简单回复\"任务成功完成\"即可。"
+  }
+}

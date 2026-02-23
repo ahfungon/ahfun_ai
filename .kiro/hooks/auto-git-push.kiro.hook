@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Auto Git Push",
+  "description": "每当 Kiro 完成一个任务后，自动将更改提交并推送到 git 仓库，并说明完成的任务标题。",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "请根据刚才完成的任务，生成一个简洁明确的 git 提交信息（中文，不超过50字），然后执行以下命令提交并推送代码：git add -A && git commit -m \"[你生成的提交信息]\" && git push。请确保提交信息准确描述了完成的具体任务。"
+  },
+  "workspaceFolderName": "ahfun_ai",
+  "shortName": "auto-git-push"
+}

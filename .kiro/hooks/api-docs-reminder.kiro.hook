@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "API Documentation Reminder",
+  "description": "Reminds to update API documentation when agent task completes and API files were modified",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "任务执行完毕。请检查本次任务中是否修改了 API 相关文件（api/routes.py, api/*.py, services/*.py, models/models.py）。\n\n如果有修改，请更新以下文档以保持同步：\n1. API文档: static/api-docs.html 或 API_ENDPOINTS.md\n2. Swagger文档: /docs 端点\n3. AI智能体使用指南: static/ai-agent-guide.html\n\n确保文档反映最新的API变化，包括新增、修改或删除的端点、参数变化、响应格式更新等。\n\n如果本次任务未涉及 API 修改，请忽略此提醒。"
+  }
+}

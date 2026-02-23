@@ -1,0 +1,186 @@
+==========================================
+更新代码到明宽服务器（保留现有数据）
+服务器: ubuntu@129.211.28.211
+==========================================
+
+[1/4] 同步代码到服务器...
+Transfer starting: 368 files
+./
+API_ENDPOINTS.md
+          18821 100%    5.62MB/s   00:00:00 (xfer#1, to-check=10/368)
+Celery�\#234\#215�\#212��\#207\#215�\#220�_�\#214�\#210\#220�\#212��\#221\#212.md
+           3542 100%    5.46MB/s   00:00:00 (xfer#2, to-check=18/368)
+DeepSeek_API_Key�\#237�\#200�\#205\#215置_�\#214�\#210\#220�\#212��\#221\#212.md
+           2791 100%    3.87MB/s   00:00:00 (xfer#3, to-check=23/368)
+DeepSeek_API_Key�\#205\#215置说�\#230\#216.md
+           2788 100%    3.97MB/s   00:00:00 (xfer#4, to-check=24/368)
+Token�\#230\#210�\#200��\#203�\#225��\#212��\#221\#212.md
+           4944 100%    5.30MB/s   00:00:00 (xfer#5, to-check=44/368)
+deploy_log_20260215_195349.txt
+            883 422%    2.79MB/s   00:00:00 (xfer#6, to-check=55/368)
+deploy_update_to_mingkuan.sh
+           5942 100%   18.77MB/s   00:00:00 (xfer#7, to-check=58/368)
+start_services.sh
+           8586 100%    8.57MB/s   00:00:00 (xfer#8, to-check=75/368)
+test_send_message_simple.py
+           2271 100%    2.89MB/s   00:00:00 (xfer#9, to-check=90/368)
+�\#211\#215�\#220\#216端�\#212��\#200\#201�\#200�\#237��\#212��\#221\#212.md
+           2450 100%    3.85MB/s   00:00:00 (xfer#10, to-check=110/368)
+�\#221\#230�\#201触�\#217\#221�\#234��\#210�说�\#230\#216.md
+           6331 100%    8.13MB/s   00:00:00 (xfer#11, to-check=133/368)
+�\#226\#207件�\#220\#214�\#255��\#214�\#201�\#212��\#221\#212.md
+           2784 100%    3.29MB/s   00:00:00 (xfer#12, to-check=134/368)
+�\#233��\#226��\#210��\#230\#216宽�\#234\#215�\#212��\#231�_�\#223\#215�\#234�\#214\#207�\#215\#227.md
+           6185 100%   18.31MB/s   00:00:00 (xfer#13, to-check=157/368)
+�\#233\#221�\#216�页�\#235��\#225��\#215��\#212�载�\#227��\#230修�\#215�\#212��\#221\#212.md
+           5134 100%    5.44MB/s   00:00:00 (xfer#14, to-check=173/368)
+api/routes.py
+          34023 100%   13.36MB/s   00:00:00 (xfer#15, to-check=261/368)
+frontend/ai-agent-guide.html
+          58364 100%   16.94MB/s   00:00:00 (xfer#16, to-check=276/368)
+simulation_test/autonomous_agent.py
+          41389 100%   15.34MB/s   00:00:00 (xfer#17, to-check=315/368)
+
+sent 46322 bytes  received 1768 bytes  533740 bytes/sec
+total size is 3185317  speedup is 66.24
+✓ 代码同步完成
+
+[2/4] 检查 .env 配置...
+本地 .env 文件存在，是否要更新到服务器？
+注意：这会覆盖服务器上的 .env 文件
+是否继续？(y/N): 
+✓ .env 文件已更新
+
+[3/4] 在服务器上执行更新...
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+Welcome to Ubuntu 24.04 LTS (GNU/Linux 6.8.0-71-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com
+ * Management:     https://landscape.canonical.com
+ * Support:        https://ubuntu.com/pro
+
+ System information as of Sun Feb 15 07:54:52 PM CST 2026
+
+  System load:  0.0                Processes:             153
+  Usage of /:   26.7% of 49.10GB   Users logged in:       0
+  Memory usage: 59%                IPv4 address for eth0: 172.17.0.16
+  Swap usage:   30%
+
+  => There are 3 zombie processes.
+
+
+Expanded Security Maintenance for Applications is not enabled.
+
+229 updates can be applied immediately.
+To see these additional updates run: apt list --upgradable
+
+Enable ESM Apps to receive additional future security updates.
+See https://ubuntu.com/esm or run: sudo pro status
+
+
+==========================================
+服务器端更新开始
+==========================================
+
+检查 .env 配置...
+✓ .env 文件存在
+
+激活 Python 虚拟环境...
+
+更新 Python 依赖...
+✓ 依赖更新完成
+
+检查 Redis 服务...
+PONG
+✓ Redis 运行正常
+
+检查 PostgreSQL 服务...
+✓ PostgreSQL 运行正常
+
+备份当前数据库...
+✓ 数据库已备份到: backup_20260215_195454.sql
+
+停止服务...
+✓ 服务已停止
+
+启动服务...
+等待服务启动...
+
+==========================================
+服务器端更新完成
+==========================================
+
+服务状态：
+
+--- FastAPI ---
+● dual-agent-api.service - Dual Agent Chat API
+     Loaded: loaded (/etc/systemd/system/dual-agent-api.service; enabled; preset: enabled)
+     Active: active (running) since Sun 2026-02-15 19:54:58 CST; 5s ago
+   Main PID: 384501 (uvicorn)
+      Tasks: 8 (limit: 2267)
+     Memory: 68.4M (peak: 68.8M)
+        CPU: 1.319s
+     CGroup: /system.slice/dual-agent-api.service
+             └─384501 /home/ubuntu/dual-agent-chat/venv/bin/python3 /home/ubuntu/dual-agent-chat/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+
+
+--- Celery Worker ---
+● dual-agent-celery.service - Dual Agent Chat Celery Worker
+     Loaded: loaded (/etc/systemd/system/dual-agent-celery.service; enabled; preset: enabled)
+     Active: active (running) since Sun 2026-02-15 19:54:59 CST; 5s ago
+   Main PID: 384504 (celery)
+      Tasks: 6 (limit: 2267)
+     Memory: 217.5M (peak: 218.0M)
+        CPU: 1.320s
+     CGroup: /system.slice/dual-agent-celery.service
+             ├─384504 /home/ubuntu/dual-agent-chat/venv/bin/python3 /home/ubuntu/dual-agent-chat/venv/bin/celery -A workers.celery_app worker --loglevel=info
+             ├─384530 /home/ubuntu/dual-agent-chat/venv/bin/python3 /home/ubuntu/dual-agent-chat/venv/bin/celery -A workers.celery_app worker --loglevel=info
+
+--- Celery Beat ---
+● dual-agent-celery-beat.service - Dual Agent Chat Celery Beat
+     Loaded: loaded (/etc/systemd/system/dual-agent-celery-beat.service; enabled; preset: enabled)
+     Active: active (running) since Sun 2026-02-15 19:54:59 CST; 5s ago
+   Main PID: 384507 (celery)
+      Tasks: 1 (limit: 2267)
+     Memory: 60.5M (peak: 60.7M)
+        CPU: 850ms
+     CGroup: /system.slice/dual-agent-celery-beat.service
+             └─384507 /home/ubuntu/dual-agent-chat/venv/bin/python3 /home/ubuntu/dual-agent-chat/venv/bin/celery -A workers.celery_app beat --loglevel=info
+
+
+--- Nginx ---
+● nginx.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)
+     Active: active (running) since Sun 2026-02-15 19:54:59 CST; 5s ago
+       Docs: man:nginx(8)
+    Process: 384514 ExecStartPre=/usr/sbin/nginx -t -q -g daemon on; master_process on; (code=exited, status=0/SUCCESS)
+
+[4/4] 验证部署...
+
+等待服务完全启动...
+检查 API 健康状态...
+✓ API 服务正常
+
+检查前端页面...
+✓ 监控页面可访问
+
+==========================================
+部署完成！
+==========================================
+
+访问地址：
+  🌐 监控页面: http://129.211.28.211:8080/monitor.html
+  💬 聊天页面: http://129.211.28.211:8080/index.html
+  🔧 管理页面: http://129.211.28.211:8080/admin.html
+  📚 API 文档: http://129.211.28.211:8080/docs
+  📖 智能体指南: http://129.211.28.211:8080/ai-agent-guide.html
+
+查看日志：
+  ssh -i ~/.ssh/mingkuan.pem ubuntu@129.211.28.211 'tail -f ~/dual-agent-chat/logs/api.log'
+  ssh -i ~/.ssh/mingkuan.pem ubuntu@129.211.28.211 'tail -f ~/dual-agent-chat/logs/worker.log'
+  ssh -i ~/.ssh/mingkuan.pem ubuntu@129.211.28.211 'tail -f ~/dual-agent-chat/logs/beat.log'
+
+数据库备份：
+  服务器上已创建数据库备份文件（backup_*.sql）
+
+==========================================

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史话题 - AI 双智能体对话平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/es/highlight.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* 深色主题（默认） */
+        :root {
+            --bg-primary: #0A0E27;
+            --bg-secondary: #0F172A;
+            --bg-card: #1E293B;
+            --accent-primary: #8B5CF6;
+            --accent-secondary: #A78BFA;
+            --accent-cyan: #06B6D4;
+            --accent-green: #10B981;
+            --accent-gold: #FBBF24;
+            --text-primary: #F8FAFC;
+            --text-secondary: #CBD5E1;
+            --text-muted: #64748B;
+            --border-color: #334155;
+            --glow-purple: 0 0 20px rgba(139, 92, 246, 0.3);
+            --navbar-bg: rgba(30, 41, 59, 0.8);
+            --code-bg: rgba(139, 92, 246, 0.15);
+        }
+
+        /* 浅色主题 */
+        [data-theme="light"] {
+            --bg-primary: #F8FAFC;
+            --bg-secondary: #F1F5F9;
+            --bg-card: #FFFFFF;
+            --accent-primary: #7C3AED;
+            --accent-secondary: #8B5CF6;
+            --accent-cyan: #0891B2;
+            --accent-green: #059669;
+            --accent-gold: #D97706;
+            --text-primary: #0F172A;
+            --text-secondary: #334155;
+            --text-muted: #64748B;
+            --border-color: #E2E8F0;
+            --glow-purple: 0 0 20px rgba(124, 58, 237, 0.15);
+            --navbar-bg: rgba(255, 255, 255, 0.8);
+            --code-bg: rgba(124, 58, 237, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .navbar {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: var(--navbar-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            box-shadow: var(--glow-purple);
+            transition: all 0.3s ease;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .btn-theme {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            background: transparent;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-theme:hover {
+            background: var(--bg-card);
+            border-color: var(--accent-primary);
+        }
+
+        .btn-theme svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .main-content {
+            margin-top: 100px;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        .history-list {
+            display: grid;
+            gap: 20px;
+        }
+
+        .history-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .history-item:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--glow-purple);
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .history-item-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .history-item-date {
+            font-size: 13px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            margin-left: 16px;
+        }
+
+        .history-item-description {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 15px;
+            margin-bottom: 16px;
+        }
+
+        .history-item-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .history-item-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-view-topic {
+            margin-top: 16px;
+            padding: 10px 20px;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-view-topic:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+            }
+
+            .page-title {
+                font-size: 24px;
+            }
+
+            .history-item-header {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .history-item-date {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            历史话题
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <a href="monitor.html" class="btn-theme" title="返回监控">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                <span>返回</span>
+            </a>
+            <button class="btn-theme" onclick="history.toggleTheme()" title="切换主题">
+                <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    历史话题
+                </h1>
+                <p class="page-subtitle">浏览已关闭的对话话题</p>
+            </div>
+
+            <div id="historyList">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                    </svg>
+                    <div>正在加载...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const history = {
+            apiUrl: '/api',
+
+            init() {
+                this.loadTheme();
+                this.loadHistoryTopics();
+            },
+
+            loadTheme() {
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                this.setTheme(savedTheme);
+            },
+
+            setTheme(theme) {
+                if (theme === 'light') {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    document.getElementById('theme-icon-sun').style.display = 'block';
+                    document.getElementById('theme-icon-moon').style.display = 'none';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    document.getElementById('theme-icon-sun').style.display = 'none';
+                    document.getElementById('theme-icon-moon').style.display = 'block';
+                }
+                localStorage.setItem('theme', theme);
+            },
+
+            toggleTheme() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                this.setTheme(newTheme);
+            },
+
+            async loadHistoryTopics() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/monitor/topics/closed?limit=50`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    this.displayHistoryTopics(data.topics || []);
+                } catch (error) {
+                    console.error('加载历史话题失败:', error);
+                    document.getElementById('historyList').innerHTML = `
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                            </svg>
+                            <div>加载失败</div>
+                        </div>
+                    `;
+                }
+            },
+
+            displayHistoryTopics(topics) {
+                const container = document.getElementById('historyList');
+                
+                if (!topics || topics.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <div>暂无历史话题</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const html = topics.map(topic => {
+                    const createdDate = new Date(topic.created_at).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const closedDate = topic.updated_at ? new Date(topic.updated_at).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : '';
+
+                    return `
+                        <div class="history-item" onclick="history.viewHistoryTopic('${topic.topic_id}')">
+                            <div class="history-item-header">
+                                <div class="history-item-title">${this.escapeHtml(topic.title)}</div>
+                                <div class="history-item-date">${createdDate}</div>
+                            </div>
+                            ${topic.topic_description ? `
+                                <div class="history-item-description">
+                                    ${this.escapeHtml(topic.topic_description)}
+                                </div>
+                            ` : ''}
+                            <div class="history-item-stats">
+                                <div class="history-item-stat">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    ${topic.message_count || 0} 条消息
+                                </div>
+                                <div class="history-item-stat">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    评分: ${topic.end_score ? topic.end_score.toFixed(1) : '0.0'}
+                                </div>
+                                ${closedDate ? `
+                                    <div class="history-item-stat">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        关闭: ${closedDate}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <button class="btn-view-topic" onclick="event.stopPropagation(); history.viewHistoryTopic('${topic.topic_id}')">
+                                查看详情
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = `<div class="history-list">${html}</div>`;
+            },
+
+            viewHistoryTopic(topicId) {
+                // 跳转到监控页面并加载该话题
+                window.location.href = `monitor.html?topic=${topicId}`;
+            },
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            history.init();
+        });
+    </script>
+</body>
+</html>

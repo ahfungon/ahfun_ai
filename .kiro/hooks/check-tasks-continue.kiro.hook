@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Check Tasks and Continue",
+  "description": "After Kiro stops, check Tasks.md for remaining required tasks and automatically start a new session to continue if needed",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "请检查 .kiro/specs/dual-agent-chat/tasks.md 文档，查看是否还有剩余的必须完成的任务。如果有未完成的必要任务，请立即继续执行这些任务。"
+  },
+  "workspaceFolderName": "ahfun_ai",
+  "shortName": "check-tasks-continue"
+}

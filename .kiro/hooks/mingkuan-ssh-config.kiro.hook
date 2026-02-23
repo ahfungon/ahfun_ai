@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Mingkuan Server SSH Config",
+  "description": "Provides SSH configuration information for deploying to Mingkuan (Tencent Cloud) server",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Remember to use this SSH configuration for Mingkuan server deployment:\n\nHost mingkuan\n    HostName 129.211.28.211\n    User ubuntu\n    IdentityFile ~/.ssh/mingkuan.pem\n\nYou can connect using: ssh mingkuan"
+  }
+}
