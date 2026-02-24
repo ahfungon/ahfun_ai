@@ -1067,6 +1067,120 @@ async def admin_update_topic(
     }
 
 
+@router.post("/admin/topic")
+async def admin_create_topic(
+    request: CreateTopicRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Create a new topic.
+    No authentication required for admin purposes.
+    
+    Args:
+        request: Topic creation request with title and description
+    
+    Returns:
+        Created topic information
+    """
+    topic_service = TopicService(db)
+    
+    # Validate title
+    if not request.title or not request.title.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Title is required"
+        )
+    
+    topic = topic_service.create_topic(
+        title=request.title.strip(),
+        topic_description=request.topic_description.strip() if request.topic_description else None
+    )
+    
+    return {
+        "status": "success",
+        "message": "Topic created successfully",
+        "topic": {
+            "topic_id": topic.id,
+            "title": topic.title,
+            "topic_description": topic.topic_description,
+            "status": topic.status,
+            "created_at": topic.created_at.isoformat()
+        }
+    }
+
+
+@router.delete("/admin/topic/{topic_id}")
+async def admin_delete_topic(
+    topic_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Delete a topic and all its messages.
+    No authentication required for admin purposes.
+    
+    WARNING: This operation is irreversible and will delete all associated messages.
+    
+    Args:
+        topic_id: Topic ID to delete
+    
+    Returns:
+        Success message with deletion statistics
+    """
+    from models.models import MessageRelevanceScore, SummaryHistory
+    
+    # Check if topic exists
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Topic {topic_id} not found"
+        )
+    
+    try:
+        # Count messages before deletion
+        message_count = db.query(func.count(Message.id)).filter(
+            Message.topic_id == topic_id
+        ).scalar() or 0
+        
+        # Delete related records in order (foreign key constraints)
+        # 1. Delete message relevance scores
+        db.query(MessageRelevanceScore).filter(
+            MessageRelevanceScore.topic_id == topic_id
+        ).delete(synchronize_session=False)
+        
+        # 2. Delete messages
+        db.query(Message).filter(
+            Message.topic_id == topic_id
+        ).delete(synchronize_session=False)
+        
+        # 3. Delete summary history
+        db.query(SummaryHistory).filter(
+            SummaryHistory.topic_id == topic_id
+        ).delete(synchronize_session=False)
+        
+        # 4. Delete the topic itself
+        db.delete(topic)
+        
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": f"Topic deleted successfully",
+            "deleted": {
+                "topic_id": topic_id,
+                "title": topic.title,
+                "messages_deleted": message_count
+            }
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete topic: {str(e)}"
+        )
+
+
 @router.get("/admin/stats")
 async def admin_get_stats(db: Session = Depends(get_db)):
     """

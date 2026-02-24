@@ -497,6 +497,7 @@
                             <option value="closing_pending">待关闭</option>
                             <option value="closed">已关闭</option>
                         </select>
+                        <button class="btn btn-primary btn-sm" onclick="admin.showCreateTopicModal()" style="margin-right: 10px;">➕ 新增话题</button>
                         <button class="btn btn-primary btn-sm" onclick="admin.loadTopics()">刷新</button>
                     </div>
                 </div>
@@ -755,6 +756,7 @@
                                             <td>
                                                 <button class="btn btn-primary btn-sm" onclick="admin.viewTopicDetail('${topic.topic_id}')">详情</button>
                                                 <button class="btn btn-primary btn-sm" onclick="admin.viewTopicMessages('${topic.topic_id}')">消息</button>
+                                                <button class="btn btn-sm" onclick="admin.deleteTopic('${topic.topic_id}', '${this.escapeHtml(topic.title)}')" style="background: #f56565; color: white;">删除</button>
                                             </td>
                                         </tr>
                                     `;
@@ -862,6 +864,105 @@
                 
                 document.getElementById('modal-body').innerHTML = html;
                 document.getElementById('messageModal').classList.add('active');
+            },
+
+            showCreateTopicModal() {
+                const html = `
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 15px;">新增话题</h3>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">话题标题 <span style="color: #f56565;">*</span></label>
+                            <input type="text" id="new-topic-title" placeholder="请输入话题标题" 
+                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">话题描述</label>
+                            <textarea id="new-topic-description" rows="6" placeholder="请输入话题描述（可选）" 
+                                      style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;"></textarea>
+                            <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
+                                💡 提示：话题描述会作为智能体讨论的指导方针
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button class="btn btn-primary" onclick="admin.createTopic()">创建话题</button>
+                            <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">取消</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('modal-body').innerHTML = html;
+                document.getElementById('messageModal').classList.add('active');
+            },
+
+            async createTopic() {
+                const title = document.getElementById('new-topic-title').value.trim();
+                const description = document.getElementById('new-topic-description').value.trim();
+                
+                if (!title) {
+                    alert('请输入话题标题');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/topic`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            title: title,
+                            topic_description: description || null
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || `HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    alert('话题创建成功！');
+                    this.closeModal();
+                    this.loadTopics();
+                } catch (error) {
+                    console.error('创建失败:', error);
+                    alert('创建失败: ' + error.message);
+                }
+            },
+
+            async deleteTopic(topicId, topicTitle) {
+                if (!confirm(`确定要删除话题"${topicTitle}"吗？\n\n⚠️ 警告：此操作将删除该话题的所有消息和相关数据，且不可恢复！`)) {
+                    return;
+                }
+                
+                // 二次确认
+                if (!confirm('再次确认：您真的要删除这个话题吗？此操作不可撤销！')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/topic/${topicId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || `HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    alert(`删除成功！\n已删除 ${result.deleted.messages_deleted} 条消息`);
+                    this.loadTopics();
+                    
+                    // 如果当前在仪表盘，刷新仪表盘
+                    if (this.currentSection === 'dashboard') {
+                        this.loadDashboard();
+                    }
+                } catch (error) {
+                    console.error('删除失败:', error);
+                    alert('删除失败: ' + error.message);
+                }
             },
 
             async updateTopic(topicId) {
