@@ -836,6 +836,31 @@
                     </div>
                 `;
 
+                // LLM 建议
+                if (topic.llm_suggestion) {
+                    const suggestionText = {
+                        'continue': '继续讨论',
+                        'change_angle': '换个角度',
+                        'suggest_end': '建议结束',
+                        'force_end': '强制结束'
+                    }[topic.llm_suggestion] || topic.llm_suggestion;
+
+                    const suggestionColor = {
+                        'continue': 'var(--accent-green)',
+                        'change_angle': 'var(--accent-gold)',
+                        'suggest_end': 'var(--accent-primary)',
+                        'force_end': 'var(--text-muted)'
+                    }[topic.llm_suggestion] || 'var(--text-secondary)';
+
+                    html += `
+                        <div style="margin-top: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid ${suggestionColor};">
+                            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">LLM 建议</div>
+                            <div style="font-weight: 600; color: ${suggestionColor};">${suggestionText}</div>
+                        </div>
+                    `;
+                }
+
+                // 话题摘要
                 if (topic.summary) {
                     html += `
                         <div class="summary-box">
@@ -845,6 +870,7 @@
                     `;
                 }
 
+                // LLM 提示
                 if (topic.llm_hint) {
                     html += `
                         <div class="llm-hint">
