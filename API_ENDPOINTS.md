@@ -863,14 +863,29 @@ GET /api/admin/config/llm
 **无需认证**（管理端点）
 
 **功能说明**:
-- 获取系统配置中的 LLM 设置
-- 供 Python 模拟器使用，确保与后端服务配置一致
+- 获取系统配置中的所有 LLM 设置
+- 供 Python 模拟器和前端模拟器使用，确保与后端服务配置一致
+- 返回 DeepSeek 和 MiniMax 两种 LLM 的完整配置
 - 返回完整 API Key（用于模拟器调用）和脱敏 Key（用于显示）
 
 **响应示例**:
 ```json
 {
   "provider": "deepseek",
+  "deepseek": {
+    "api_key": "sk-xxxxxxxxxxxxxxxx",
+    "masked_key": "sk-xxxxx...xxxx",
+    "api_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "is_configured": true
+  },
+  "minimax": {
+    "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "masked_key": "eyJhbGci...1KaM",
+    "api_url": "https://api.minimax.chat/v1",
+    "model": "abab6.5-chat",
+    "is_configured": true
+  },
   "api_key": "sk-xxxxxxxxxxxxxxxx",
   "masked_key": "sk-xxxxx...xxxx",
   "api_url": "https://api.deepseek.com/v1",
@@ -880,15 +895,19 @@ GET /api/admin/config/llm
 ```
 
 **字段说明**:
-- `provider`: LLM 提供商（deepseek/minimax）
-- `api_key`: 完整的 API Key（供模拟器使用）
-- `masked_key`: 脱敏的 API Key（供显示使用）
-- `api_url`: API 端点 URL
-- `model`: 模型名称
-- `is_configured`: 是否已配置 API Key
+- `provider`: 默认 LLM 提供商（deepseek/minimax）
+- `deepseek`: DeepSeek LLM 配置对象
+  - `api_key`: 完整的 API Key（供模拟器使用）
+  - `masked_key`: 脱敏的 API Key（供显示使用）
+  - `api_url`: API 端点 URL
+  - `model`: 模型名称
+  - `is_configured`: 是否已配置 API Key
+- `minimax`: MiniMax LLM 配置对象（字段同上）
+- `api_key`, `masked_key`, `api_url`, `model`, `is_configured`: 默认提供商的配置（兼容旧版本）
 
 **使用场景**:
 - Python 模拟器获取 LLM 配置
+- 前端模拟器支持多 LLM 选择
 - 确保模拟器与后端服务使用相同配置
 - 在管理后台修改配置后，模拟器自动使用新配置
 
@@ -896,6 +915,7 @@ GET /api/admin/config/llm
 - 此端点返回完整 API Key，请注意安全
 - 建议仅在内网环境使用
 - Python 模拟器会优先使用此配置，环境变量作为备用
+- 前端模拟器可以根据智能体的发言模式选择不同的 LLM
 
 ---
 

@@ -1717,11 +1717,25 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                     <span class="path">/api/admin/config/llm</span>
                 </div>
                 <h3>获取 LLM 配置（供模拟器使用）</h3>
-                <p>获取系统配置中的 LLM 设置，供 Python 模拟器使用。确保模拟器与后端服务使用相同配置。此接口无需认证。</p>
+                <p>获取系统配置中的所有 LLM 设置，供 Python 模拟器和前端模拟器使用。返回 DeepSeek 和 MiniMax 两种 LLM 的完整配置。此接口无需认证。</p>
 
                 <h4>响应示例</h4>
                 <div class="code-block">{
   "provider": "deepseek",
+  "deepseek": {
+    "api_key": "sk-xxxxxxxxxxxxxxxx",
+    "masked_key": "sk-xxxxx...xxxx",
+    "api_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "is_configured": true
+  },
+  "minimax": {
+    "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "masked_key": "eyJhbGci...1KaM",
+    "api_url": "https://api.minimax.chat/v1",
+    "model": "abab6.5-chat",
+    "is_configured": true
+  },
   "api_key": "sk-xxxxxxxxxxxxxxxx",
   "masked_key": "sk-xxxxx...xxxx",
   "api_url": "https://api.deepseek.com/v1",
@@ -1739,32 +1753,47 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                     <tr>
                         <td>provider</td>
                         <td>string</td>
-                        <td>LLM 提供商（deepseek/minimax）</td>
+                        <td>默认 LLM 提供商（deepseek/minimax）</td>
                     </tr>
                     <tr>
-                        <td>api_key</td>
+                        <td>deepseek</td>
+                        <td>object</td>
+                        <td>DeepSeek LLM 配置对象</td>
+                    </tr>
+                    <tr>
+                        <td>deepseek.api_key</td>
                         <td>string</td>
                         <td>完整的 API Key（供模拟器使用）</td>
                     </tr>
                     <tr>
-                        <td>masked_key</td>
+                        <td>deepseek.masked_key</td>
                         <td>string</td>
                         <td>脱敏的 API Key（供显示使用）</td>
                     </tr>
                     <tr>
-                        <td>api_url</td>
+                        <td>deepseek.api_url</td>
                         <td>string</td>
                         <td>API 端点 URL</td>
                     </tr>
                     <tr>
-                        <td>model</td>
+                        <td>deepseek.model</td>
                         <td>string</td>
                         <td>模型名称</td>
                     </tr>
                     <tr>
-                        <td>is_configured</td>
+                        <td>deepseek.is_configured</td>
                         <td>boolean</td>
                         <td>是否已配置 API Key</td>
+                    </tr>
+                    <tr>
+                        <td>minimax</td>
+                        <td>object</td>
+                        <td>MiniMax LLM 配置对象（字段同 deepseek）</td>
+                    </tr>
+                    <tr>
+                        <td>api_key, masked_key, api_url, model, is_configured</td>
+                        <td>various</td>
+                        <td>默认提供商的配置（兼容旧版本）</td>
                     </tr>
                 </table>
 
@@ -1772,6 +1801,7 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                     <strong>💡 使用场景：</strong>
                     <ul>
                         <li>Python 模拟器获取 LLM 配置</li>
+                        <li>前端模拟器支持多 LLM 选择</li>
                         <li>确保模拟器与后端服务使用相同配置</li>
                         <li>在管理后台修改配置后，模拟器自动使用新配置</li>
                     </ul>
@@ -1783,6 +1813,7 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                         <li>此端点返回完整 API Key，请注意安全</li>
                         <li>建议仅在内网环境使用</li>
                         <li>Python 模拟器会优先使用此配置，环境变量作为备用</li>
+                        <li>前端模拟器可以根据智能体的发言模式选择不同的 LLM</li>
                     </ul>
                 </div>
             </div>

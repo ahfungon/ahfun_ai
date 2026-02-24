@@ -1839,14 +1839,15 @@ ${conversationHistory || '（暂无对话历史）'}
                     
                     // 根据模式返回相应的配置
                     if (mode === 'deepseek') {
-                        if (config.provider === 'deepseek' && config.is_configured) {
+                        // 使用新的 API 响应格式
+                        if (config.deepseek && config.deepseek.is_configured) {
                             return {
-                                api_key: config.api_key,
-                                api_url: config.api_url,
-                                model: config.model
+                                api_key: config.deepseek.api_key,
+                                api_url: config.deepseek.api_url,
+                                model: config.deepseek.model
                             };
                         }
-                        // 如果系统配置不是 deepseek，尝试使用本地存储的 API Key
+                        // 如果系统配置未设置，尝试使用本地存储的 API Key
                         const localKey = this.deepseekApiKey || localStorage.getItem('deepseek_api_key');
                         if (localKey) {
                             return {
@@ -1856,11 +1857,12 @@ ${conversationHistory || '（暂无对话历史）'}
                             };
                         }
                     } else if (mode === 'minimax') {
-                        if (config.provider === 'minimax' && config.is_configured) {
+                        // 使用新的 API 响应格式
+                        if (config.minimax && config.minimax.is_configured) {
                             return {
-                                api_key: config.api_key,
-                                api_url: config.api_url,
-                                model: config.model
+                                api_key: config.minimax.api_key,
+                                api_url: config.minimax.api_url,
+                                model: config.minimax.model
                             };
                         }
                     }
