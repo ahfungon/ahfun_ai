@@ -752,7 +752,7 @@ GET /api/health
 }
 ```
 
-#### 5.2 根路径
+#### 8.2 根路径
 ```
 GET /
 ```
@@ -766,6 +766,95 @@ GET /
   "docs": "/docs"
 }
 ```
+
+#### 8.3 重启 Celery Worker
+```
+POST /api/admin/worker/restart
+```
+**无需认证**（管理端点）
+
+**功能说明**:
+- 重启 Celery Worker 进程
+- 用于在修改 LLM 配置后使新配置生效
+- 支持多种重启方式（快速脚本、普通脚本、直接命令）
+
+**响应示例（成功）**:
+```json
+{
+  "success": true,
+  "message": "Worker restart initiated successfully",
+  "output": "Worker restart initiated",
+  "note": "Worker is restarting. Please wait a few seconds for it to be ready.",
+  "script_used": "restart_worker_quick.sh"
+}
+```
+
+**响应示例（超时但可能成功）**:
+```json
+{
+  "success": true,
+  "message": "Worker restart initiated (background process)",
+  "note": "The restart is in progress. Please wait 10-15 seconds and check Worker status.",
+  "warning": "Restart command timed out, but Worker may still be starting in the background."
+}
+```
+
+**响应示例（失败）**:
+```json
+{
+  "success": false,
+  "message": "Worker restart failed",
+  "error": "错误信息",
+  "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+}
+```
+
+**使用场景**:
+- 切换 LLM 提供商（DeepSeek ↔ MiniMax）
+- 修改 API Key
+- 修改 API URL
+- 修改模型名称
+
+**注意事项**:
+- 重启过程需要 10-15 秒
+- 重启期间无法处理总结任务
+- 建议在系统空闲时重启
+
+#### 8.4 获取 Worker 状态
+```
+GET /api/admin/worker/status
+```
+**无需认证**（管理端点）
+
+**功能说明**:
+- 检查 Celery Worker 是否运行
+- 返回进程信息
+
+**响应示例（运行中）**:
+```json
+{
+  "running": true,
+  "message": "Worker is running",
+  "process_count": 1,
+  "processes": [
+    "PID: 12345, CPU: 0.5%, MEM: 2.3%"
+  ]
+}
+```
+
+**响应示例（未运行）**:
+```json
+{
+  "running": false,
+  "message": "Worker is not running",
+  "process_count": 0
+}
+```
+
+**使用场景**:
+- 监控 Worker 状态
+- 验证重启是否成功
+- 系统健康检查
 
 ---
 
