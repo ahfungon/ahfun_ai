@@ -428,6 +428,7 @@
         <div class="nav-item" onclick="admin.showSection('topics')">💬 话题管理</div>
         <div class="nav-item" onclick="admin.showSection('messages')">📝 消息查看</div>
         <div class="nav-item" onclick="admin.showSection('simulator')">🧪 智能体模拟器</div>
+        <div class="nav-item" onclick="admin.showSection('config')">⚙️ 系统配置</div>
         <div class="nav-item" onclick="admin.showSection('health')">🏥 系统健康</div>
     </div>
 
@@ -525,6 +526,91 @@
                             <div>请输入话题ID查看消息</div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Config Section -->
+        <div id="config-section" class="hidden">
+            <div class="panel">
+                <div class="panel-header">
+                    ⚙️ 系统配置
+                </div>
+                <div class="panel-body">
+                    <!-- API Key 配置 -->
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                            🔑 DeepSeek API Key 配置
+                        </h3>
+                        <p style="color: #7f8c8d; margin-bottom: 20px; font-size: 14px;">
+                            配置 DeepSeek API Key 后，系统将启用以下功能：消息评分、对话总结、自动生成新话题。
+                            此 API Key 也将用于智能体模拟器的 LLM 模式。
+                        </p>
+                        
+                        <div id="api-key-status" style="margin-bottom: 20px;">
+                            <div class="loading">加载中...</div>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50;">
+                                API Key
+                            </label>
+                            <div style="display: flex; gap: 10px;">
+                                <input 
+                                    type="password" 
+                                    id="api-key-input" 
+                                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" 
+                                    style="flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace;"
+                                />
+                                <button 
+                                    class="btn btn-primary" 
+                                    onclick="config.updateApiKey()"
+                                    style="min-width: 100px;"
+                                >
+                                    保存
+                                </button>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 13px; color: #7f8c8d;">
+                                💡 提示：API Key 格式应为 sk- 开头，长度至少 20 个字符
+                            </div>
+                        </div>
+
+                        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 15px; margin-top: 15px;">
+                            <div style="display: flex; align-items: start; gap: 10px;">
+                                <div style="font-size: 20px;">⚠️</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 5px; color: #856404;">重要提示</div>
+                                    <div style="font-size: 14px; color: #856404; line-height: 1.6;">
+                                        更新 API Key 后，需要重启 Celery Worker 才能生效。<br>
+                                        重启命令：<code style="background: #fff; padding: 2px 6px; border-radius: 3px;">pkill -f celery && python quick_start.py</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                            <h4 style="margin-bottom: 10px; color: #2c3e50;">📚 相关资源</h4>
+                            <ul style="list-style: none; padding: 0; margin: 0;">
+                                <li style="margin-bottom: 8px;">
+                                    <a href="https://platform.deepseek.com/" target="_blank" style="color: #667eea; text-decoration: none;">
+                                        🔗 获取 API Key (platform.deepseek.com)
+                                    </a>
+                                </li>
+                                <li style="margin-bottom: 8px;">
+                                    <a href="#" onclick="config.showDocs(); return false;" style="color: #667eea; text-decoration: none;">
+                                        📖 查看配置文档
+                                    </a>
+                                </li>
+                                <li style="margin-bottom: 8px;">
+                                    <a href="#" onclick="config.testApiKey(); return false;" style="color: #667eea; text-decoration: none;">
+                                        🧪 测试 API Key 连接
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 其他配置项可以在这里添加 -->
                 </div>
             </div>
         </div>
@@ -633,7 +719,7 @@
                 event.target.classList.add('active');
 
                 // Hide all sections
-                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'health'].forEach(s => {
+                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'config', 'health'].forEach(s => {
                     document.getElementById(`${s}-section`).classList.add('hidden');
                 });
 
@@ -650,6 +736,8 @@
                     this.loadTopics();
                 } else if (section === 'simulator') {
                     simulator.init();
+                } else if (section === 'config') {
+                    config.init();
                 } else if (section === 'health') {
                     this.loadHealth();
                 }
@@ -1282,11 +1370,25 @@
             },
 
             loadApiKey() {
+                // 优先使用系统配置的 API Key，如果没有则使用本地存储的
                 this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
             },
 
             saveApiKey() {
                 localStorage.setItem('deepseek_api_key', this.deepseekApiKey);
+            },
+
+            async checkSystemApiKey() {
+                try {
+                    const response = await fetch('/api/admin/config/api-key');
+                    const data = await response.json();
+                    if (data.is_configured) {
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('检查系统 API Key 失败:', error);
+                }
+                return false;
             },
 
             showApiKeyModal() {
@@ -1296,11 +1398,15 @@
                 const html = `
                     <div style="margin-bottom: 20px;">
                         <h3 style="margin-bottom: 15px;">配置 DeepSeek API Key</h3>
+                        <div style="background: #e7f3ff; border-left: 4px solid #3b82f6; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
+                            <strong>💡 推荐方式：</strong><br>
+                            建议在 <a href="#" onclick="admin.showSection('config'); admin.closeModal(); return false;" style="color: #3b82f6; font-weight: 600;">⚙️ 系统配置</a> 中统一配置 API Key。<br>
+                            系统配置的 API Key 会自动用于智能体模拟器、消息评分、对话总结等所有功能。
+                        </div>
                         <div style="background: #fffaf0; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-                            <strong>💡 说明：</strong><br>
+                            <strong>ℹ️ 说明：</strong><br>
                             • LLM模式需要DeepSeek API Key才能工作<br>
                             • 模板模式不需要API Key<br>
-                            • API Key保存在浏览器本地，不会上传到服务器<br>
                             • 获取API Key：<a href="https://platform.deepseek.com" target="_blank" style="color: #3b82f6;">https://platform.deepseek.com</a>
                         </div>
                         <div style="margin-bottom: 15px;">
@@ -1314,7 +1420,7 @@
                             <input type="password" id="deepseek-api-key" placeholder="sk-..." 
                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
                             <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
-                                留空则不修改
+                                留空则不修改（此配置仅用于模拟器，不影响系统其他功能）
                             </div>
                         </div>
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
@@ -1750,6 +1856,138 @@ ${conversationHistory || '（暂无对话历史）'}
                 const total = this.stats.successCount + this.stats.errorCount;
                 const rate = total > 0 ? Math.round((this.stats.successCount / total) * 100) : 0;
                 document.getElementById('sim-success-rate').textContent = rate + '%';
+            }
+        };
+
+        // Config management object
+        const config = {
+            apiUrl: '/api',
+
+            async init() {
+                await this.loadApiKeyStatus();
+            },
+
+            async loadApiKeyStatus() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/config/api-key`);
+                    const data = await response.json();
+
+                    const statusHtml = data.is_configured ? `
+                        <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; padding: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <div style="font-size: 24px;">✅</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #155724;">API Key 已配置</div>
+                                    <div style="font-size: 13px; color: #155724; margin-top: 5px;">
+                                        当前 Key: <code style="background: #fff; padding: 2px 6px; border-radius: 3px;">${data.masked_key}</code>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="font-size: 13px; color: #155724; line-height: 1.6;">
+                                <div>API URL: ${data.api_url}</div>
+                                <div>模型: ${data.model}</div>
+                            </div>
+                        </div>
+                    ` : `
+                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 6px; padding: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 24px;">❌</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #721c24;">API Key 未配置</div>
+                                    <div style="font-size: 13px; color: #721c24; margin-top: 5px;">
+                                        请在下方输入 DeepSeek API Key 以启用系统功能
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('api-key-status').innerHTML = statusHtml;
+                } catch (error) {
+                    console.error('加载 API Key 状态失败:', error);
+                    document.getElementById('api-key-status').innerHTML = `
+                        <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 6px; padding: 15px; color: #721c24;">
+                            ❌ 加载失败: ${error.message}
+                        </div>
+                    `;
+                }
+            },
+
+            async updateApiKey() {
+                const apiKeyInput = document.getElementById('api-key-input');
+                const apiKey = apiKeyInput.value.trim();
+
+                if (!apiKey) {
+                    alert('请输入 API Key');
+                    return;
+                }
+
+                if (!apiKey.startsWith('sk-')) {
+                    alert('API Key 格式错误，应以 sk- 开头');
+                    return;
+                }
+
+                if (apiKey.length < 20) {
+                    alert('API Key 长度不足，请检查是否完整');
+                    return;
+                }
+
+                if (!confirm('确定要更新 API Key 吗？更新后需要重启 Celery Worker 才能生效。')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/config/api-key`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        alert('✅ API Key 更新成功！\n\n请重启 Celery Worker:\npkill -f celery && python quick_start.py');
+                        apiKeyInput.value = '';
+                        await this.loadApiKeyStatus();
+                        
+                        // 同步更新智能体模拟器的 API Key
+                        localStorage.setItem('deepseek_api_key', apiKey);
+                    } else {
+                        alert('❌ 更新失败: ' + data.detail);
+                    }
+                } catch (error) {
+                    console.error('更新 API Key 失败:', error);
+                    alert('❌ 更新失败: ' + error.message);
+                }
+            },
+
+            showDocs() {
+                alert('📖 配置文档\n\n' +
+                    '1. 访问 https://platform.deepseek.com/ 注册账号\n' +
+                    '2. 在 API Keys 页面创建新的 API Key\n' +
+                    '3. 复制 API Key 并粘贴到上方输入框\n' +
+                    '4. 点击"保存"按钮\n' +
+                    '5. 重启 Celery Worker 使配置生效\n\n' +
+                    '详细文档请查看项目根目录的 DeepSeek_API配置指南.md'
+                );
+            },
+
+            async testApiKey() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/health`);
+                    const data = await response.json();
+
+                    if (data.deepseek && data.deepseek.status === 'healthy') {
+                        alert('✅ API Key 测试成功！\n\nDeepSeek API 连接正常');
+                    } else {
+                        alert('⚠️ API Key 可能有问题\n\n' + 
+                            (data.deepseek ? data.deepseek.message : '无法连接到 DeepSeek API'));
+                    }
+                } catch (error) {
+                    alert('❌ 测试失败: ' + error.message);
+                }
             }
         };
 

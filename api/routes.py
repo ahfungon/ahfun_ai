@@ -1233,3 +1233,119 @@ async def admin_get_stats(db: Session = Depends(get_db)):
         },
         "active_topic": active_topic_info
     }
+
+
+@router.get("/admin/config/api-key")
+async def admin_get_api_key():
+    """
+    Admin endpoint: Get current DeepSeek API Key status.
+    Returns masked key for security.
+    
+    Returns:
+        API Key status and masked value
+    """
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    api_key = os.getenv("DEEPSEEK_API_KEY", "")
+    
+    # Check if key is configured
+    is_configured = bool(api_key and api_key != "your_deepseek_api_key_here")
+    
+    # Mask the key for security (show first 8 and last 4 characters)
+    masked_key = ""
+    if is_configured and len(api_key) > 12:
+        masked_key = api_key[:8] + "..." + api_key[-4:]
+    elif is_configured:
+        masked_key = api_key[:4] + "..."
+    
+    return {
+        "is_configured": is_configured,
+        "masked_key": masked_key if is_configured else None,
+        "api_url": os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/v1"),
+        "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    }
+
+
+@router.post("/admin/config/api-key")
+async def admin_update_api_key(request: dict):
+    """
+    Admin endpoint: Update DeepSeek API Key in .env file.
+    
+    Args:
+        request: {"api_key": "sk-xxx"}
+    
+    Returns:
+        Success status and message
+    """
+    import os
+    import re
+    from pathlib import Path
+    
+    api_key = request.get("api_key", "").strip()
+    
+    # Validate API key format
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="API Key cannot be empty"
+        )
+    
+    if not api_key.startswith("sk-"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API Key format (should start with 'sk-')"
+        )
+    
+    if len(api_key) < 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="API Key too short (invalid format)"
+        )
+    
+    try:
+        # Find .env file
+        env_path = Path(".env")
+        if not env_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=".env file not found"
+            )
+        
+        # Read current .env content
+        with open(env_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Update DEEPSEEK_API_KEY
+        pattern = r"DEEPSEEK_API_KEY=.*"
+        replacement = f"DEEPSEEK_API_KEY={api_key}"
+        
+        if re.search(pattern, content):
+            # Replace existing key
+            new_content = re.sub(pattern, replacement, content)
+        else:
+            # Append new key
+            new_content = content.rstrip() + f"\n{replacement}\n"
+        
+        # Write back to .env
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        
+        # Update environment variable for current process
+        os.environ["DEEPSEEK_API_KEY"] = api_key
+        
+        return {
+            "success": True,
+            "message": "API Key updated successfully. Please restart Celery Worker to apply changes.",
+            "restart_required": True
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update API Key: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update API Key: {str(e)}"
+        )
