@@ -1677,29 +1677,61 @@ async def restart_worker():
     import os
     
     try:
-        # Check if restart script exists
-        script_path = "restart_worker.sh"
-        if not os.path.exists(script_path):
-            return {
-                "success": False,
-                "message": "Restart script not found. Please restart Worker manually.",
-                "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
-            }
+        # 优先使用快速重启脚本
+        quick_script = "restart_worker_quick.sh"
+        normal_script = "restart_worker.sh"
         
-        # Execute restart script
+        if os.path.exists(quick_script):
+            script_path = quick_script
+            timeout = 5  # 快速脚本只需要 5 秒
+        elif os.path.exists(normal_script):
+            script_path = normal_script
+            timeout = 20  # 普通脚本需要更长时间
+        else:
+            # 如果脚本都不存在，直接执行命令
+            try:
+                # 停止 Worker
+                subprocess.run(
+                    ["pkill", "-f", "celery -A workers.celery_app worker"],
+                    timeout=3
+                )
+                # 等待一下
+                import time
+                time.sleep(1)
+                # 启动 Worker（后台）
+                subprocess.Popen(
+                    ["celery", "-A", "workers.celery_app", "worker", 
+                     "--loglevel=info", "--logfile=logs/worker.log"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                return {
+                    "success": True,
+                    "message": "Worker restart initiated successfully (direct command)",
+                    "note": "Worker is restarting. Please wait a few seconds for it to be ready."
+                }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "message": f"Failed to restart Worker: {str(e)}",
+                    "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+                }
+        
+        # 执行重启脚本
         result = subprocess.run(
             ["bash", script_path],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=timeout
         )
         
         if result.returncode == 0:
             return {
                 "success": True,
                 "message": "Worker restart initiated successfully",
-                "output": result.stdout,
-                "note": "Worker is restarting. Please wait a few seconds for it to be ready."
+                "output": result.stdout if result.stdout else "Restart initiated",
+                "note": "Worker is restarting. Please wait a few seconds for it to be ready.",
+                "script_used": script_path
             }
         else:
             return {
@@ -1710,10 +1742,12 @@ async def restart_worker():
             }
     
     except subprocess.TimeoutExpired:
+        # 超时不一定是失败，Worker 可能正在后台启动
         return {
-            "success": False,
-            "message": "Worker restart timed out",
-            "note": "The restart may still be in progress. Please check Worker status manually."
+            "success": True,  # 改为 True，因为重启可能正在进行
+            "message": "Worker restart initiated (background process)",
+            "note": "The restart is in progress. Please wait 10-15 seconds and check Worker status.",
+            "warning": "Restart command timed out, but Worker may still be starting in the background."
         }
     except Exception as e:
         return {

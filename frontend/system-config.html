@@ -638,7 +638,7 @@
                 const originalText = textEl.textContent;
                 
                 // 确认对话框
-                if (!confirm('确定要重启 Celery Worker 吗？\n\n重启后，新的 LLM 配置将生效。\n重启过程大约需要 5-10 秒。')) {
+                if (!confirm('确定要重启 Celery Worker 吗？\n\n重启后，新的 LLM 配置将生效。\n重启过程大约需要 10-15 秒。')) {
                     return;
                 }
                 
@@ -653,12 +653,43 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        this.showMessage('Worker 重启成功！新配置已生效。', 'success');
+                        // 显示成功消息
+                        let message = 'Worker 重启已启动！';
+                        if (data.warning) {
+                            message += '\n' + data.warning;
+                        }
+                        if (data.note) {
+                            message += '\n' + data.note;
+                        }
                         
-                        // 等待几秒后检查状态
-                        setTimeout(() => {
-                            this.checkWorkerStatus();
+                        this.showMessage(message, 'success');
+                        
+                        // 显示提示：等待 Worker 启动
+                        textEl.textContent = '等待启动...';
+                        
+                        // 每 3 秒检查一次状态，最多检查 5 次（15 秒）
+                        let checkCount = 0;
+                        const maxChecks = 5;
+                        
+                        const checkInterval = setInterval(async () => {
+                            checkCount++;
+                            await this.checkWorkerStatus();
+                            
+                            // 检查是否已经运行
+                            const statusEl = document.getElementById('workerStatus');
+                            if (statusEl.textContent.includes('运行中') || checkCount >= maxChecks) {
+                                clearInterval(checkInterval);
+                                btn.disabled = false;
+                                textEl.textContent = originalText;
+                                
+                                if (statusEl.textContent.includes('运行中')) {
+                                    this.showMessage('✅ Worker 已成功启动！新配置已生效。', 'success');
+                                } else {
+                                    this.showMessage('⚠️ Worker 可能还在启动中，请稍后刷新查看状态。', 'error');
+                                }
+                            }
                         }, 3000);
+                        
                     } else {
                         this.showMessage('Worker 重启失败: ' + data.message, 'error');
                         
@@ -666,11 +697,13 @@
                             console.log('手动重启命令:', data.manual_command);
                             alert('自动重启失败，请手动执行以下命令：\n\n' + data.manual_command);
                         }
+                        
+                        btn.disabled = false;
+                        textEl.textContent = originalText;
                     }
                 } catch (error) {
                     console.error('重启 Worker 失败:', error);
                     this.showMessage('重启失败: ' + error.message, 'error');
-                } finally {
                     btn.disabled = false;
                     textEl.textContent = originalText;
                 }
