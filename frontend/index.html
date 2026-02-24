@@ -894,6 +894,47 @@
                     const agentInitial = agentName.charAt(0).toUpperCase();
                     const time = new Date(msg.created_at).toLocaleString('zh-CN');
 
+                    // 评分信息
+                    let scoreHtml = '';
+                    if (msg.relevance_score !== null && msg.relevance_score !== undefined) {
+                        const score = msg.relevance_score;
+                        let scoreColor = '#10B981'; // 绿色
+                        let scoreLabel = '优秀';
+                        
+                        if (score >= 80) {
+                            scoreColor = '#10B981'; // 绿色
+                            scoreLabel = '优秀';
+                        } else if (score >= 60) {
+                            scoreColor = '#F59E0B'; // 黄色
+                            scoreLabel = '良好';
+                        } else {
+                            scoreColor = '#EF4444'; // 红色
+                            scoreLabel = '待改进';
+                        }
+
+                        scoreHtml = `
+                            <div class="message-score" style="
+                                margin-top: 12px;
+                                padding: 12px;
+                                background: var(--bg-secondary);
+                                border-left: 3px solid ${scoreColor};
+                                border-radius: 6px;
+                            ">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${scoreColor}" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    <span style="font-weight: 600; color: ${scoreColor};">
+                                        ${score.toFixed(0)} 分 · ${scoreLabel}
+                                    </span>
+                                </div>
+                                <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.5;">
+                                    ${this.escapeHtml(msg.evaluation_comment || '暂无评论')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     return `
                         <div class="message ${agentClass}">
                             <div class="message-header">
@@ -904,6 +945,7 @@
                                 <span class="message-time">${time}</span>
                             </div>
                             <div class="message-content">${this.renderMarkdown(msg.content)}</div>
+                            ${scoreHtml}
                         </div>
                     `;
                 }).join('');
