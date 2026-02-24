@@ -155,7 +155,7 @@ class MiniMaxClient(BaseLLMClient):
         
         try:
             response = requests.post(
-                f"{self.api_url}/chat/completions",
+                f"{self.api_url}/text/chatcompletion_v2",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -270,7 +270,7 @@ class MiniMaxClient(BaseLLMClient):
         
         try:
             response = requests.post(
-                f"{self.api_url}/chat/completions",
+                f"{self.api_url}/text/chatcompletion_v2",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
