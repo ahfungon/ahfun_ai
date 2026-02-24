@@ -6,7 +6,8 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from models.models import MessageRelevanceScore, Message, Topic, Agent
-from services.llm_clients.deepseek_client import DeepSeekClient
+from services.llm_clients import DeepSeekClient, MiniMaxClient
+from services.system_config_service import SystemConfigService
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -23,10 +24,37 @@ class MessageScoringService:
             db: Database session
         """
         self.db = db
-        self.deepseek_client = DeepSeekClient(
-            api_key=settings.deepseek_api_key,
-            api_url=settings.deepseek_api_url
-        )
+        self.config_service = SystemConfigService(db)
+        
+        # Get LLM provider from system config
+        provider = self.config_service.get_config_value('llm_provider_scoring', 'deepseek')
+        
+        logger.info(f"[MessageScoringService] Initializing with LLM provider: {provider}")
+        
+        if provider == 'minimax':
+            # Initialize MiniMax client
+            api_key = self.config_service.get_config_value('minimax_api_key', '')
+            api_url = self.config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
+            model = self.config_service.get_config_value('minimax_model', 'abab6.5-chat')
+            
+            self.llm_client = MiniMaxClient(
+                api_key=api_key,
+                api_url=api_url,
+                model=model
+            )
+            self.llm_provider = 'MiniMax'
+        else:
+            # Initialize DeepSeek client (default)
+            api_key = self.config_service.get_config_value('deepseek_api_key', settings.deepseek_api_key)
+            api_url = self.config_service.get_config_value('deepseek_api_url', settings.deepseek_api_url)
+            model = self.config_service.get_config_value('deepseek_model', settings.deepseek_model)
+            
+            self.llm_client = DeepSeekClient(
+                api_key=api_key,
+                api_url=api_url,
+                model=model
+            )
+            self.llm_provider = 'DeepSeek'
     
     def evaluate_message(
         self,
@@ -70,11 +98,12 @@ class MessageScoringService:
                 message_content=content
             )
             
-            # Call DeepSeek LLM
-            result = self.deepseek_client.evaluate_message_relevance(prompt)
+            # Call LLM (DeepSeek or MiniMax based on config)
+            logger.info(f"[MessageScoringService] Evaluating message {message_id} using {self.llm_provider}")
+            result = self.llm_client.evaluate_message_relevance(prompt)
             
             if not result:
-                logger.warning(f"DeepSeek returned empty result for message {message_id}")
+                logger.warning(f"{self.llm_provider} returned empty result for message {message_id}")
                 return None
             
             # Create score record
@@ -108,7 +137,23 @@ class MessageScoringService:
         agent_name: str,
         message_content: str
     ) -> str:
-        """Build evaluation prompt for DeepSeek LLM."""
+        """Build evaluation prompt for LLM (DeepSeek or MiniMax)."""
+        # Try to get custom prompt from system config
+        custom_prompt = self.config_service.get_config_value('scoring_prompt', None)
+        
+        if custom_prompt:
+            # Use custom prompt template with variable substitution
+            try:
+                return custom_prompt.format(
+                    topic_title=topic_title,
+                    topic_description=topic_description if topic_description else "（无详细描述）",
+                    current_summary=summary if summary else "（讨论刚开始，暂无总结）",
+                    message_content=message_content
+                )
+            except KeyError as e:
+                logger.warning(f"Custom scoring prompt has invalid placeholder: {e}, using default")
+        
+        # Default prompt
         prompt = f"""你是一个主题相关性评估专家。请评估以下发言与主题的相关性。
 
 【主题】

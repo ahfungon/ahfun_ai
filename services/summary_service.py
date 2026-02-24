@@ -11,7 +11,8 @@ from models.models import Topic, Message, SummaryHistory
 from models.database import transaction, atomic_update
 from config.settings import settings
 from utils.logging_config import log_llm_call, log_error_with_context
-from services.llm_clients import DeepSeekClient, LLMClientError
+from services.llm_clients import DeepSeekClient, MiniMaxClient, LLMClientError
+from services.system_config_service import SystemConfigService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -43,21 +44,51 @@ class SummaryService:
         
         Args:
             db: Database session
-            deepseek_client: DeepSeek client instance (optional, will create default if not provided)
+            deepseek_client: DeepSeek client instance (optional, deprecated - will use system config)
         """
         self.db = db
+        self.config_service = SystemConfigService(db)
         
-        # Initialize DeepSeek client
-        if deepseek_client is None:
-            self.deepseek_client = DeepSeekClient(
-                api_key=settings.deepseek_api_key,
-                api_url=settings.deepseek_api_url,
+        # Get LLM provider from system config
+        provider = self.config_service.get_config_value('llm_provider_summary', 'deepseek')
+        
+        logger.info(f"[SummaryService] Initializing with LLM provider: {provider}")
+        
+        # Initialize LLM client based on config
+        if deepseek_client is not None:
+            # Legacy: use provided client
+            self.llm_client = deepseek_client
+            self.llm_provider = 'DeepSeek (legacy)'
+        elif provider == 'minimax':
+            # Initialize MiniMax client
+            api_key = self.config_service.get_config_value('minimax_api_key', '')
+            api_url = self.config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
+            model = self.config_service.get_config_value('minimax_model', 'abab6.5-chat')
+            
+            self.llm_client = MiniMaxClient(
+                api_key=api_key,
+                api_url=api_url,
                 timeout=30,
                 max_retries=3,
-                retry_delays=[1, 2, 4]
+                retry_delays=[1, 2, 4],
+                model=model
             )
+            self.llm_provider = 'MiniMax'
         else:
-            self.deepseek_client = deepseek_client
+            # Initialize DeepSeek client (default)
+            api_key = self.config_service.get_config_value('deepseek_api_key', settings.deepseek_api_key)
+            api_url = self.config_service.get_config_value('deepseek_api_url', settings.deepseek_api_url)
+            model = self.config_service.get_config_value('deepseek_model', settings.deepseek_model)
+            
+            self.llm_client = DeepSeekClient(
+                api_key=api_key,
+                api_url=api_url,
+                timeout=30,
+                max_retries=3,
+                retry_delays=[1, 2, 4],
+                model=model
+            )
+            self.llm_provider = 'DeepSeek'
     
     def generate_summary(
         self,
@@ -65,10 +96,10 @@ class SummaryService:
         new_messages: List[Message]
     ) -> SummaryResult:
         """
-        Generate a new cumulative summary using DeepSeek API.
+        Generate a new cumulative summary using configured LLM (DeepSeek or MiniMax).
 
         This method constructs a prompt with the old summary and new messages,
-        calls the DeepSeek LLM, and parses the response to extract the summary,
+        calls the configured LLM, and parses the response to extract the summary,
         suggestion, and end_score.
 
         Args:
@@ -81,7 +112,7 @@ class SummaryService:
         Raises:
             Exception: If LLM API call fails
         """
-        # Build prompt for DeepSeek
+        # Build prompt
         prompt = self._build_summary_prompt(topic.summary, new_messages)
 
         # Prepare request parameters for logging
@@ -89,19 +120,21 @@ class SummaryService:
             "topic_id": topic.id,
             "old_summary_length": len(topic.summary) if topic.summary else 0,
             "new_messages_count": len(new_messages),
-            "prompt_length": len(prompt)
+            "prompt_length": len(prompt),
+            "llm_provider": self.llm_provider
         }
 
-        # Call DeepSeek API with timing and logging
+        # Call LLM API with timing and logging
         start_time = time.time()
         try:
-            llm_response = self._call_deepseek_api(prompt)
+            logger.info(f"[SummaryService] Generating summary for topic {topic.id} using {self.llm_provider}")
+            llm_response = self._call_llm_api(prompt)
             duration_ms = (time.time() - start_time) * 1000
 
             # Log successful LLM call
             log_llm_call(
                 logger,
-                provider="DeepSeek",
+                provider=self.llm_provider,
                 operation="generate_summary",
                 request_params=request_params,
                 response=llm_response,
@@ -114,7 +147,7 @@ class SummaryService:
             # Log failed LLM call
             log_llm_call(
                 logger,
-                provider="DeepSeek",
+                provider=self.llm_provider,
                 operation="generate_summary",
                 request_params=request_params,
                 error=e,
@@ -302,7 +335,7 @@ class SummaryService:
         new_messages: List[Message]
     ) -> str:
         """
-        Build prompt for DeepSeek summary generation.
+        Build prompt for LLM summary generation (DeepSeek or MiniMax).
         
         Args:
             old_summary: Previous cumulative summary
@@ -311,6 +344,9 @@ class SummaryService:
         Returns:
             Formatted prompt string
         """
+        # Try to get custom prompt from system config
+        custom_prompt = self.config_service.get_config_value('summary_prompt', None)
+        
         # Format messages
         formatted_messages = []
         for msg in new_messages:
@@ -318,6 +354,17 @@ class SummaryService:
         
         messages_text = "\n".join(formatted_messages)
         
+        if custom_prompt:
+            # Use custom prompt template with variable substitution
+            try:
+                return custom_prompt.format(
+                    previous_summary=old_summary if old_summary else "（暂无历史总结）",
+                    new_messages=messages_text
+                )
+            except KeyError as e:
+                logger.warning(f"Custom summary prompt has invalid placeholder: {e}, using default")
+        
+        # Default prompt
         prompt = f"""你是一个对话总结助手。请将以下内容压缩为简洁的中文摘要。
 
 【历史总结】
@@ -344,14 +391,14 @@ class SummaryService:
         
         return prompt
     
-    def _call_deepseek_api(self, prompt: str) -> Dict[str, Any]:
+    def _call_llm_api(self, prompt: str) -> Dict[str, Any]:
         """
-        Call DeepSeek API for summary generation.
+        Call configured LLM API (DeepSeek or MiniMax) for summary generation.
         
-        Uses the DeepSeekClient wrapper with retry logic and error handling.
+        Uses the LLM client wrapper with retry logic and error handling.
         
         Args:
-            prompt: Prompt to send to DeepSeek
+            prompt: Prompt to send to LLM
         
         Returns:
             API response as dictionary containing summary, suggestion, and end_score
@@ -360,7 +407,7 @@ class SummaryService:
             LLMClientError: If API call fails after all retries
         """
         try:
-            response = self.deepseek_client.generate_summary(
+            response = self.llm_client.generate_summary(
                 prompt=prompt,
                 temperature=0.3,
                 max_tokens=2000
@@ -368,8 +415,8 @@ class SummaryService:
             return response
             
         except LLMClientError as e:
-            logger.error(f"DeepSeek API call failed: {e}")
-            raise Exception(f"DeepSeek API call failed: {e}")
+            logger.error(f"{self.llm_provider} API call failed: {e}")
+            raise Exception(f"{self.llm_provider} API call failed: {e}")
     
     def _parse_llm_response(
         self,

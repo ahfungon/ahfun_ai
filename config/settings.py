@@ -46,6 +46,18 @@ class Settings(BaseSettings):
         default="deepseek-chat",
         description="DeepSeek model name"
     )
+    minimax_api_key: str = Field(
+        default="",
+        description="MiniMax API key for summary generation"
+    )
+    minimax_api_url: str = Field(
+        default="https://api.minimax.chat/v1",
+        description="MiniMax API endpoint"
+    )
+    minimax_model: str = Field(
+        default="abab6.5-chat",
+        description="MiniMax model name"
+    )
     
     # Summary Configuration
     summary_threshold: int = Field(
