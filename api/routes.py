@@ -1127,6 +1127,7 @@ async def admin_delete_topic(
         Success message with deletion statistics
     """
     from models.models import MessageRelevanceScore, SummaryHistory
+    from sqlalchemy import func
     
     # Check if topic exists
     topic = db.query(Topic).filter(Topic.id == topic_id).first()
