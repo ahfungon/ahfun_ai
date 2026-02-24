@@ -252,10 +252,37 @@
         .card-body {
             padding: 24px;
         }
+        
+        /* 右侧话题信息面板特殊样式 */
+        #topicInfo {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+        
+        #topicInfo::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #topicInfo::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 3px;
+        }
+        
+        #topicInfo::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        
+        #topicInfo::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-primary);
+        }
 
         /* Messages */
         .messages-container {
-            height: 600px;
+            height: calc(100vh - 200px);
+            min-height: 600px;
             overflow-y: auto;
             padding: 20px;
             background: var(--bg-secondary);
@@ -442,7 +469,7 @@
         }
 
         .info-item {
-            padding: 16px;
+            padding: 12px 14px;
             background: var(--bg-secondary);
             border-radius: 10px;
             border: 1px solid var(--border-color);
@@ -456,15 +483,15 @@
         }
 
         .info-label {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .info-value {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             color: var(--text-primary);
         }
@@ -513,32 +540,51 @@
         .summary-box {
             background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(251, 146, 60, 0.05) 100%);
             border: 1px solid var(--accent-primary);
-            padding: 20px;
+            padding: 16px;
             border-radius: 12px;
-            margin-top: 16px;
+            margin-top: 12px;
         }
 
         .summary-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--accent-primary);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .summary-content {
             color: var(--text-secondary);
-            line-height: 1.7;
+            line-height: 1.6;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+        
+        .summary-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .summary-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .summary-content::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 2px;
         }
 
         .llm-hint {
             background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(252, 211, 77, 0.1) 100%);
             border-left: 3px solid var(--accent-gold);
-            padding: 16px;
-            margin-top: 16px;
+            padding: 12px;
+            margin-top: 12px;
             border-radius: 8px;
             color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         .llm-hint strong {
@@ -598,6 +644,11 @@
 
             .messages-container {
                 height: 500px;
+                min-height: 500px;
+            }
+            
+            #topicInfo {
+                max-height: none;
             }
         }
 
@@ -614,6 +665,7 @@
 
             .messages-container {
                 height: 400px;
+                min-height: 400px;
             }
 
             .message {
@@ -853,9 +905,9 @@
                     }[topic.llm_suggestion] || 'var(--text-secondary)';
 
                     html += `
-                        <div style="margin-top: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid ${suggestionColor};">
-                            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">LLM 建议</div>
-                            <div style="font-weight: 600; color: ${suggestionColor};">${suggestionText}</div>
+                        <div style="margin-top: 12px; padding: 10px 12px; background: var(--bg-secondary); border-radius: 8px; border-left: 3px solid ${suggestionColor};">
+                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">LLM 建议</div>
+                            <div style="font-weight: 600; font-size: 14px; color: ${suggestionColor};">${suggestionText}</div>
                         </div>
                     `;
                 }
