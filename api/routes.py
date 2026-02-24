@@ -1349,3 +1349,314 @@ async def admin_update_api_key(request: dict):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update API Key: {str(e)}"
         )
+
+
+# System Configuration Endpoints
+
+class SystemConfigResponse(BaseModel):
+    """Response model for system configuration."""
+    key: str
+    value: str
+    config_type: str
+    category: str
+    display_name: str
+    description: Optional[str]
+    default_value: Optional[str]
+    validation: Optional[str]
+    options: Optional[str]
+    display_order: int
+    updated_at: Optional[str]
+
+
+class UpdateConfigRequest(BaseModel):
+    """Request model for updating configuration."""
+    value: str
+
+
+class UpdateMultipleConfigsRequest(BaseModel):
+    """Request model for updating multiple configurations."""
+    configs: dict[str, str]
+
+
+@router.get("/admin/config/system")
+async def get_system_configs(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Get all system configurations.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        category: Optional category filter
+    
+    Returns:
+        List of system configurations grouped by category
+    """
+    from services.system_config_service import SystemConfigService
+    
+    config_service = SystemConfigService(db)
+    
+    # Initialize defaults if not exists
+    config_service.initialize_defaults()
+    
+    if category:
+        configs = config_service.get_all_configs(category=category)
+        return {
+            "category": category,
+            "configs": [
+                SystemConfigResponse(
+                    key=c.key,
+                    value=c.value,
+                    config_type=c.config_type,
+                    category=c.category,
+                    display_name=c.display_name,
+                    description=c.description,
+                    default_value=c.default_value,
+                    validation=c.validation,
+                    options=c.options,
+                    display_order=c.display_order,
+                    updated_at=c.updated_at.isoformat() if c.updated_at else None
+                )
+                for c in configs
+            ]
+        }
+    else:
+        configs_by_category = config_service.get_configs_by_category()
+        return {
+            "categories": {
+                cat: [
+                    SystemConfigResponse(
+                        key=c.key,
+                        value=c.value,
+                        config_type=c.config_type,
+                        category=c.category,
+                        display_name=c.display_name,
+                        description=c.description,
+                        default_value=c.default_value,
+                        validation=c.validation,
+                        options=c.options,
+                        display_order=c.display_order,
+                        updated_at=c.updated_at.isoformat() if c.updated_at else None
+                    )
+                    for c in configs
+                ]
+                for cat, configs in configs_by_category.items()
+            }
+        }
+
+
+@router.get("/admin/config/system/export")
+async def export_system_configs(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Export all system configurations.
+    No authentication required for monitoring purposes.
+    
+    Returns:
+        All configurations as dictionary
+    """
+    from services.system_config_service import SystemConfigService
+    
+    config_service = SystemConfigService(db)
+    configs = config_service.export_configs()
+    
+    return {
+        "success": True,
+        "configs": configs,
+        "exported_at": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/admin/config/system/{key}")
+async def get_system_config(
+    key: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Get a specific system configuration.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        key: Configuration key
+    
+    Returns:
+        System configuration
+    """
+    from services.system_config_service import SystemConfigService
+    
+    config_service = SystemConfigService(db)
+    config = config_service.get_config(key)
+    
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Configuration key '{key}' not found"
+        )
+    
+    return SystemConfigResponse(
+        key=config.key,
+        value=config.value,
+        config_type=config.config_type,
+        category=config.category,
+        display_name=config.display_name,
+        description=config.description,
+        default_value=config.default_value,
+        validation=config.validation,
+        options=config.options,
+        display_order=config.display_order,
+        updated_at=config.updated_at.isoformat() if config.updated_at else None
+    )
+
+
+@router.put("/admin/config/system/{key}")
+async def update_system_config(
+    key: str,
+    request: UpdateConfigRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Update a system configuration.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        key: Configuration key
+        request: Update request with new value
+    
+    Returns:
+        Updated configuration
+    """
+    from services.system_config_service import SystemConfigService
+    
+    try:
+        config_service = SystemConfigService(db)
+        config = config_service.update_config(key, request.value)
+        
+        return {
+            "success": True,
+            "message": f"Configuration '{key}' updated successfully",
+            "config": SystemConfigResponse(
+                key=config.key,
+                value=config.value,
+                config_type=config.config_type,
+                category=config.category,
+                display_name=config.display_name,
+                description=config.description,
+                default_value=config.default_value,
+                validation=config.validation,
+                options=config.options,
+                display_order=config.display_order,
+                updated_at=config.updated_at.isoformat() if config.updated_at else None
+            )
+        }
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update configuration: {str(e)}"
+        )
+
+
+@router.post("/admin/config/system/batch")
+async def update_multiple_configs(
+    request: UpdateMultipleConfigsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Update multiple system configurations at once.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        request: Update request with multiple key-value pairs
+    
+    Returns:
+        List of updated configurations
+    """
+    from services.system_config_service import SystemConfigService
+    
+    try:
+        config_service = SystemConfigService(db)
+        updated_configs = config_service.update_multiple_configs(request.configs)
+        
+        return {
+            "success": True,
+            "message": f"Updated {len(updated_configs)} configurations",
+            "configs": [
+                SystemConfigResponse(
+                    key=c.key,
+                    value=c.value,
+                    config_type=c.config_type,
+                    category=c.category,
+                    display_name=c.display_name,
+                    description=c.description,
+                    default_value=c.default_value,
+                    validation=c.validation,
+                    options=c.options,
+                    display_order=c.display_order,
+                    updated_at=c.updated_at.isoformat() if c.updated_at else None
+                )
+                for c in updated_configs
+            ]
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update configurations: {str(e)}"
+        )
+
+
+@router.post("/admin/config/system/{key}/reset")
+async def reset_system_config(
+    key: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Reset a system configuration to default value.
+    No authentication required for monitoring purposes.
+    
+    Args:
+        key: Configuration key
+    
+    Returns:
+        Reset configuration
+    """
+    from services.system_config_service import SystemConfigService
+    
+    try:
+        config_service = SystemConfigService(db)
+        config = config_service.reset_config(key)
+        
+        return {
+            "success": True,
+            "message": f"Configuration '{key}' reset to default value",
+            "config": SystemConfigResponse(
+                key=config.key,
+                value=config.value,
+                config_type=config.config_type,
+                category=config.category,
+                display_name=config.display_name,
+                description=config.description,
+                default_value=config.default_value,
+                validation=config.validation,
+                options=config.options,
+                display_order=config.display_order,
+                updated_at=config.updated_at.isoformat() if config.updated_at else None
+            )
+        }
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset configuration: {str(e)}"
+        )
+

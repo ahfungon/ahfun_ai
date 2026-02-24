@@ -712,6 +712,12 @@
             },
 
             showSection(section) {
+                // Special handling for system config - redirect to dedicated page
+                if (section === 'config') {
+                    window.location.href = '/system-config.html';
+                    return;
+                }
+
                 // Update nav
                 document.querySelectorAll('.nav-item').forEach(item => {
                     item.classList.remove('active');
@@ -719,12 +725,18 @@
                 event.target.classList.add('active');
 
                 // Hide all sections
-                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'config', 'health'].forEach(s => {
-                    document.getElementById(`${s}-section`).classList.add('hidden');
+                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'health'].forEach(s => {
+                    const sectionEl = document.getElementById(`${s}-section`);
+                    if (sectionEl) {
+                        sectionEl.classList.add('hidden');
+                    }
                 });
 
                 // Show selected section
-                document.getElementById(`${section}-section`).classList.remove('hidden');
+                const sectionEl = document.getElementById(`${section}-section`);
+                if (sectionEl) {
+                    sectionEl.classList.remove('hidden');
+                }
                 this.currentSection = section;
 
                 // Load data for section
@@ -736,8 +748,6 @@
                     this.loadTopics();
                 } else if (section === 'simulator') {
                     simulator.init();
-                } else if (section === 'config') {
-                    config.init();
                 } else if (section === 'health') {
                     this.loadHealth();
                 }
