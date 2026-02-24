@@ -8,6 +8,7 @@ from sqlalchemy import desc
 from models.models import Message, Topic
 from models.database import transaction, atomic_update
 from config.settings import settings
+from services.system_config_service import SystemConfigService
 from workers.celery_app import celery_app
 
 
@@ -22,6 +23,7 @@ class MessageService:
             db: Database session
         """
         self.db = db
+        self.config_service = SystemConfigService(db)
     
     def create_message(
         self,
@@ -84,7 +86,11 @@ class MessageService:
             new_token_count = topic.token_count_since_summary
             
             # Check if we need to trigger a summary job
-            threshold = topic.summary_threshold if topic.summary_threshold else settings.summary_threshold
+            # Use topic-specific threshold if set, otherwise use system config
+            if topic.summary_threshold:
+                threshold = topic.summary_threshold
+            else:
+                threshold = self.config_service.get_config_value('summary_threshold', settings.summary_threshold)
             
             should_trigger_summary = (
                 new_token_count >= threshold and 
