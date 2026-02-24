@@ -290,6 +290,16 @@
             color: #764ba2;
             transform: translateX(-4px);
         }
+
+        #workerStatus {
+            display: inline-block;
+            transition: all 0.3s;
+        }
+
+        #restartWorkerBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -327,6 +337,15 @@
                     </svg>
                     刷新
                 </button>
+                <button class="btn btn-primary" onclick="app.restartWorker()" id="restartWorkerBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle; margin-right: 4px;">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <polyline points="1 20 1 14 7 14"></polyline>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span id="restartWorkerText">重启 Worker</span>
+                </button>
+                <span id="workerStatus" style="margin-left: 10px; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;"></span>
             </div>
         </div>
 
@@ -343,6 +362,9 @@
 
             async init() {
                 await this.loadConfigs();
+                await this.checkWorkerStatus();
+                // 每30秒检查一次 Worker 状态
+                setInterval(() => this.checkWorkerStatus(), 30000);
             },
 
             async loadConfigs() {
@@ -583,6 +605,74 @@
                 } catch (error) {
                     console.error('重置配置失败:', error);
                     this.showMessage('重置失败: ' + error.message, 'error');
+                }
+            },
+
+            async checkWorkerStatus() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/worker/status`);
+                    const data = await response.json();
+                    
+                    const statusEl = document.getElementById('workerStatus');
+                    if (data.running) {
+                        statusEl.textContent = `✅ Worker 运行中 (${data.process_count} 进程)`;
+                        statusEl.style.background = '#d1fae5';
+                        statusEl.style.color = '#065f46';
+                    } else {
+                        statusEl.textContent = '❌ Worker 未运行';
+                        statusEl.style.background = '#fee2e2';
+                        statusEl.style.color = '#991b1b';
+                    }
+                } catch (error) {
+                    console.error('检查 Worker 状态失败:', error);
+                    const statusEl = document.getElementById('workerStatus');
+                    statusEl.textContent = '⚠️ 状态未知';
+                    statusEl.style.background = '#fef3c7';
+                    statusEl.style.color = '#92400e';
+                }
+            },
+
+            async restartWorker() {
+                const btn = document.getElementById('restartWorkerBtn');
+                const textEl = document.getElementById('restartWorkerText');
+                const originalText = textEl.textContent;
+                
+                // 确认对话框
+                if (!confirm('确定要重启 Celery Worker 吗？\n\n重启后，新的 LLM 配置将生效。\n重启过程大约需要 5-10 秒。')) {
+                    return;
+                }
+                
+                try {
+                    btn.disabled = true;
+                    textEl.textContent = '重启中...';
+                    
+                    const response = await fetch(`${this.apiUrl}/admin/worker/restart`, {
+                        method: 'POST'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showMessage('Worker 重启成功！新配置已生效。', 'success');
+                        
+                        // 等待几秒后检查状态
+                        setTimeout(() => {
+                            this.checkWorkerStatus();
+                        }, 3000);
+                    } else {
+                        this.showMessage('Worker 重启失败: ' + data.message, 'error');
+                        
+                        if (data.manual_command) {
+                            console.log('手动重启命令:', data.manual_command);
+                            alert('自动重启失败，请手动执行以下命令：\n\n' + data.manual_command);
+                        }
+                    }
+                } catch (error) {
+                    console.error('重启 Worker 失败:', error);
+                    this.showMessage('重启失败: ' + error.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    textEl.textContent = originalText;
                 }
             },
 

@@ -1660,3 +1660,120 @@ async def reset_system_config(
             detail=f"Failed to reset configuration: {str(e)}"
         )
 
+
+
+@router.post("/admin/worker/restart")
+async def restart_worker():
+    """
+    Admin endpoint: Restart Celery Worker.
+    
+    This endpoint triggers a restart of the Celery Worker process.
+    Useful after changing LLM provider or API keys in system configuration.
+    
+    Returns:
+        Success message and restart status
+    """
+    import subprocess
+    import os
+    
+    try:
+        # Check if restart script exists
+        script_path = "restart_worker.sh"
+        if not os.path.exists(script_path):
+            return {
+                "success": False,
+                "message": "Restart script not found. Please restart Worker manually.",
+                "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+            }
+        
+        # Execute restart script
+        result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "Worker restart initiated successfully",
+                "output": result.stdout,
+                "note": "Worker is restarting. Please wait a few seconds for it to be ready."
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Worker restart failed",
+                "error": result.stderr,
+                "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+            }
+    
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "message": "Worker restart timed out",
+            "note": "The restart may still be in progress. Please check Worker status manually."
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to restart Worker: {str(e)}",
+            "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+        }
+
+
+@router.get("/admin/worker/status")
+async def get_worker_status():
+    """
+    Admin endpoint: Get Celery Worker status.
+    
+    Returns:
+        Worker status information
+    """
+    import subprocess
+    
+    try:
+        # Check if Worker process is running
+        result = subprocess.run(
+            ["pgrep", "-f", "celery.*worker"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            pids = result.stdout.strip().split('\n')
+            
+            # Get process details
+            processes = []
+            for pid in pids:
+                if pid:
+                    ps_result = subprocess.run(
+                        ["ps", "-p", pid, "-o", "pid,pcpu,pmem,etime"],
+                        capture_output=True,
+                        text=True
+                    )
+                    if ps_result.returncode == 0:
+                        lines = ps_result.stdout.strip().split('\n')
+                        if len(lines) > 1:
+                            processes.append(lines[1].strip())
+            
+            return {
+                "running": True,
+                "message": "Worker is running",
+                "process_count": len(pids),
+                "processes": processes
+            }
+        else:
+            return {
+                "running": False,
+                "message": "Worker is not running",
+                "process_count": 0
+            }
+    
+    except Exception as e:
+        return {
+            "running": False,
+            "message": f"Failed to check Worker status: {str(e)}",
+            "error": str(e)
+        }
