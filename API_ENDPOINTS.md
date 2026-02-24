@@ -856,6 +856,47 @@ GET /api/admin/worker/status
 - 验证重启是否成功
 - 系统健康检查
 
+#### 8.5 获取 LLM 配置（供模拟器使用）
+```
+GET /api/admin/config/llm
+```
+**无需认证**（管理端点）
+
+**功能说明**:
+- 获取系统配置中的 LLM 设置
+- 供 Python 模拟器使用，确保与后端服务配置一致
+- 返回完整 API Key（用于模拟器调用）和脱敏 Key（用于显示）
+
+**响应示例**:
+```json
+{
+  "provider": "deepseek",
+  "api_key": "sk-xxxxxxxxxxxxxxxx",
+  "masked_key": "sk-xxxxx...xxxx",
+  "api_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat",
+  "is_configured": true
+}
+```
+
+**字段说明**:
+- `provider`: LLM 提供商（deepseek/minimax）
+- `api_key`: 完整的 API Key（供模拟器使用）
+- `masked_key`: 脱敏的 API Key（供显示使用）
+- `api_url`: API 端点 URL
+- `model`: 模型名称
+- `is_configured`: 是否已配置 API Key
+
+**使用场景**:
+- Python 模拟器获取 LLM 配置
+- 确保模拟器与后端服务使用相同配置
+- 在管理后台修改配置后，模拟器自动使用新配置
+
+**注意事项**:
+- 此端点返回完整 API Key，请注意安全
+- 建议仅在内网环境使用
+- Python 模拟器会优先使用此配置，环境变量作为备用
+
 ---
 
 ## 错误响应格式

@@ -1811,3 +1811,54 @@ async def get_worker_status():
             "message": f"Failed to check Worker status: {str(e)}",
             "error": str(e)
         }
+
+
+@router.get("/admin/config/llm")
+async def get_llm_config(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Get LLM configuration for simulators.
+    Returns the current LLM provider settings from system configuration.
+
+    This endpoint is used by Python simulators to get LLM configuration
+    so they can use the same settings as the backend services.
+
+    Returns:
+        LLM configuration including provider, API key, URL, and model
+    """
+    from services.system_config_service import SystemConfigService
+
+    config_service = SystemConfigService(db)
+
+    # Get LLM provider for scoring (use as default)
+    provider = config_service.get_config_value('llm_provider_scoring', 'deepseek')
+
+    # Get API keys
+    deepseek_key = config_service.get_config_value('deepseek_api_key', '')
+    minimax_key = config_service.get_config_value('minimax_api_key', '')
+
+    # Determine which key to use based on provider
+    if provider == 'minimax':
+        api_key = minimax_key
+        api_url = "https://api.minimax.chat/v1"
+        model = "abab6.5-chat"
+    else:  # deepseek
+        api_key = deepseek_key
+        api_url = "https://api.deepseek.com/v1"
+        model = "deepseek-chat"
+
+    # Mask API key for security (show first 8 and last 4 characters)
+    masked_key = ""
+    if api_key and len(api_key) > 12:
+        masked_key = api_key[:8] + "..." + api_key[-4:]
+    elif api_key:
+        masked_key = api_key[:4] + "..."
+
+    return {
+        "provider": provider,
+        "api_key": api_key,  # Full key for simulator use
+        "masked_key": masked_key,  # Masked for display
+        "api_url": api_url,
+        "model": model,
+        "is_configured": bool(api_key)
+    }
+

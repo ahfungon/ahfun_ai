@@ -296,6 +296,23 @@ class ConversationSimulator:
                 return yaml.safe_load(f)
         return {}
     
+    def get_llm_config_from_system(self) -> Optional[Dict]:
+        """从系统配置获取 LLM 配置"""
+        try:
+            response = requests.get(f"{self.api_base_url}/api/admin/config/llm", timeout=5)
+            response.raise_for_status()
+            config = response.json()
+            
+            if config.get("is_configured"):
+                logger.info(f"✓ 从系统配置获取 LLM 配置: {config['provider']} ({config['masked_key']})")
+                return config
+            else:
+                logger.warning("⚠ 系统配置中未设置 LLM API Key")
+                return None
+        except Exception as e:
+            logger.warning(f"⚠ 无法从系统配置获取 LLM 配置: {e}")
+            return None
+    
     def setup_agents(self, num_agents: int = 2, use_llm: bool = False):
         """设置智能体"""
         logger.info(f"设置 {num_agents} 个智能体...")
@@ -303,22 +320,33 @@ class ConversationSimulator:
         # 创建 LLM 后端（如果需要）
         llm_backend = None
         if use_llm:
-            # 优先使用 DeepSeek（与评分系统一致），其次 OpenAI
-            api_key = (
-                os.getenv("DEEPSEEK_API_KEY") or 
-                os.getenv("OPENAI_API_KEY") or 
-                self.config.get("llm", {}).get("api_key")
-            )
-            if api_key:
-                llm_config = self.config.get("llm", {})
+            # 优先级 1: 从系统配置获取（与后端服务一致）
+            system_config = self.get_llm_config_from_system()
+            
+            if system_config:
                 llm_backend = LLMBackend(
-                    api_key=api_key,
-                    api_url=llm_config.get("api_url", "https://api.openai.com/v1"),
-                    model=llm_config.get("model", "gpt-3.5-turbo")
+                    api_key=system_config["api_key"],
+                    api_url=system_config["api_url"],
+                    model=system_config["model"]
                 )
-                logger.info("✓ LLM 后端已启用")
+                logger.info(f"✓ LLM 后端已启用 (系统配置: {system_config['provider']})")
             else:
-                logger.warning("⚠ 未找到 LLM API 密钥，将使用预设回复")
+                # 优先级 2: 从环境变量获取（备用方案）
+                api_key = (
+                    os.getenv("DEEPSEEK_API_KEY") or 
+                    os.getenv("OPENAI_API_KEY") or 
+                    self.config.get("llm", {}).get("api_key")
+                )
+                if api_key:
+                    llm_config = self.config.get("llm", {})
+                    llm_backend = LLMBackend(
+                        api_key=api_key,
+                        api_url=llm_config.get("api_url", "https://api.openai.com/v1"),
+                        model=llm_config.get("model", "gpt-3.5-turbo")
+                    )
+                    logger.info("✓ LLM 后端已启用 (环境变量)")
+                else:
+                    logger.warning("⚠ 未找到 LLM API 密钥，将使用预设回复")
         
         # 创建智能体
         for i in range(num_agents):
