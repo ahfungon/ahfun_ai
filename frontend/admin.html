@@ -1380,12 +1380,36 @@
             },
 
             loadApiKey() {
-                // 优先使用系统配置的 API Key，如果没有则使用本地存储的
-                this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
+                // 优先从系统配置获取 API Key
+                this.loadSystemApiKey();
+            },
+
+            async loadSystemApiKey() {
+                try {
+                    const response = await fetch('/api/admin/config/llm');
+                    const data = await response.json();
+                    if (data.is_configured) {
+                        this.deepseekApiKey = data.api_key;
+                        this.log('✅ 已从系统配置加载 API Key', 'success');
+                        return true;
+                    } else {
+                        // 如果系统配置没有，尝试从本地存储读取（备用）
+                        this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
+                        if (this.deepseekApiKey) {
+                            this.log('⚠️ 使用本地存储的 API Key（建议在系统配置中配置）', 'warning');
+                        }
+                    }
+                } catch (error) {
+                    console.error('加载系统 API Key 失败:', error);
+                    // 回退到本地存储
+                    this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
+                }
+                return false;
             },
 
             saveApiKey() {
-                localStorage.setItem('deepseek_api_key', this.deepseekApiKey);
+                // 不再保存到本地存储，提示用户使用系统配置
+                console.warn('请在系统配置中统一管理 API Key');
             },
 
             async checkSystemApiKey() {
@@ -1407,36 +1431,40 @@
                 
                 const html = `
                     <div style="margin-bottom: 20px;">
-                        <h3 style="margin-bottom: 15px;">配置 DeepSeek API Key</h3>
+                        <h3 style="margin-bottom: 15px;">API Key 配置说明</h3>
                         <div style="background: #e7f3ff; border-left: 4px solid #3b82f6; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-                            <strong>💡 推荐方式：</strong><br>
-                            建议在 <a href="#" onclick="admin.showSection('config'); admin.closeModal(); return false;" style="color: #3b82f6; font-weight: 600;">⚙️ 系统配置</a> 中统一配置 API Key。<br>
-                            系统配置的 API Key 会自动用于智能体模拟器、消息评分、对话总结等所有功能。
+                            <strong>💡 统一配置方式：</strong><br>
+                            请在 <a href="#" onclick="admin.showSection('config'); admin.closeModal(); return false;" style="color: #3b82f6; font-weight: 600;">⚙️ 系统配置</a> 中统一配置 API Key。<br>
+                            系统配置的 API Key 会自动用于：
+                            <ul style="margin: 10px 0 0 20px; padding: 0;">
+                                <li>智能体模拟器（LLM 模式）</li>
+                                <li>消息评分</li>
+                                <li>对话总结</li>
+                                <li>自动生成新话题</li>
+                            </ul>
+                        </div>
+                        <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
+                            <strong>✅ 当前配置状态：</strong><br>
+                            <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 600;">API Key:</span>
+                                    <span style="color: #7f8c8d; font-family: monospace;">${maskedKey}</span>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 12px; color: #7f8c8d;">
+                                    ${currentKey ? '✓ 已从系统配置加载' : '✗ 未配置，请前往系统配置页面设置'}
+                                </div>
+                            </div>
                         </div>
                         <div style="background: #fffaf0; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
                             <strong>ℹ️ 说明：</strong><br>
-                            • LLM模式需要DeepSeek API Key才能工作<br>
-                            • 模板模式不需要API Key<br>
-                            • 获取API Key：<a href="https://platform.deepseek.com" target="_blank" style="color: #3b82f6;">https://platform.deepseek.com</a>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">当前API Key</label>
-                            <div style="padding: 10px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; color: #7f8c8d;">
-                                ${maskedKey}
-                            </div>
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">新的API Key</label>
-                            <input type="password" id="deepseek-api-key" placeholder="sk-..." 
-                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
-                            <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
-                                留空则不修改（此配置仅用于模拟器，不影响系统其他功能）
-                            </div>
+                            • LLM 模式需要 API Key 才能工作<br>
+                            • 模板模式不需要 API Key<br>
+                            • 支持 DeepSeek 和 MiniMax 两种提供商<br>
+                            • 获取 API Key：<a href="https://platform.deepseek.com" target="_blank" style="color: #3b82f6;">DeepSeek</a> | <a href="https://www.minimaxi.com" target="_blank" style="color: #3b82f6;">MiniMax</a>
                         </div>
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
-                            <button class="btn btn-primary" onclick="simulator.saveApiKeyFromModal()">保存</button>
-                            <button class="btn" onclick="simulator.clearApiKey()" style="background: #f56565; color: white;">清除</button>
-                            <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">取消</button>
+                            <button class="btn btn-primary" onclick="admin.showSection('config'); admin.closeModal();">前往系统配置</button>
+                            <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">关闭</button>
                         </div>
                     </div>
                 `;
@@ -1444,26 +1472,8 @@
                 document.getElementById('messageModal').classList.add('active');
             },
 
-            saveApiKeyFromModal() {
-                const newKey = document.getElementById('deepseek-api-key').value.trim();
-                if (newKey) {
-                    this.deepseekApiKey = newKey;
-                    this.saveApiKey();
-                    this.log('✅ API Key 已保存', 'success');
-                    alert('API Key 已保存！');
-                }
-                admin.closeModal();
-            },
-
-            clearApiKey() {
-                if (confirm('确定要清除API Key吗？')) {
-                    this.deepseekApiKey = '';
-                    localStorage.removeItem('deepseek_api_key');
-                    this.log('🗑️ API Key 已清除', 'info');
-                    alert('API Key 已清除！');
-                    admin.closeModal();
-                }
-            },
+            // 移除这两个方法，不再需要手动保存和清除
+            // saveApiKeyFromModal() 和 clearApiKey() 已废弃
 
             loadAgents() {
                 const saved = localStorage.getItem('simulator_agents');
