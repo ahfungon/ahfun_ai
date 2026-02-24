@@ -1648,6 +1648,144 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
   }
 }</div>
             </div>
+
+            <div class="endpoint">
+                <div>
+                    <span class="method get">GET</span>
+                    <span class="path">/api/admin/worker/restart</span>
+                </div>
+                <h3>重启 Celery Worker</h3>
+                <p>重启 Celery Worker 进程。用于在修改 LLM 配置后使新配置生效。此接口无需认证。</p>
+
+                <h4>响应示例（成功）</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "Worker restart initiated successfully",
+  "output": "Worker restart initiated",
+  "note": "Worker is restarting. Please wait a few seconds for it to be ready.",
+  "script_used": "restart_worker_quick.sh"
+}</div>
+
+                <div class="info-box">
+                    <strong>💡 使用场景：</strong>
+                    <ul>
+                        <li>切换 LLM 提供商（DeepSeek ↔ MiniMax）</li>
+                        <li>修改 API Key</li>
+                        <li>修改 API URL 或模型名称</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ 注意事项：</strong>
+                    <ul>
+                        <li>重启过程需要 10-15 秒</li>
+                        <li>重启期间无法处理总结任务</li>
+                        <li>建议在系统空闲时重启</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div>
+                    <span class="method get">GET</span>
+                    <span class="path">/api/admin/worker/status</span>
+                </div>
+                <h3>获取 Worker 状态</h3>
+                <p>检查 Celery Worker 是否运行。此接口无需认证。</p>
+
+                <h4>响应示例（运行中）</h4>
+                <div class="code-block">{
+  "running": true,
+  "message": "Worker is running",
+  "process_count": 1,
+  "processes": [
+    "PID: 12345, CPU: 0.5%, MEM: 2.3%"
+  ]
+}</div>
+
+                <h4>响应示例（未运行）</h4>
+                <div class="code-block">{
+  "running": false,
+  "message": "Worker is not running",
+  "process_count": 0
+}</div>
+            </div>
+
+            <div class="endpoint">
+                <div>
+                    <span class="method get">GET</span>
+                    <span class="path">/api/admin/config/llm</span>
+                </div>
+                <h3>获取 LLM 配置（供模拟器使用）</h3>
+                <p>获取系统配置中的 LLM 设置，供 Python 模拟器使用。确保模拟器与后端服务使用相同配置。此接口无需认证。</p>
+
+                <h4>响应示例</h4>
+                <div class="code-block">{
+  "provider": "deepseek",
+  "api_key": "sk-xxxxxxxxxxxxxxxx",
+  "masked_key": "sk-xxxxx...xxxx",
+  "api_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat",
+  "is_configured": true
+}</div>
+
+                <h4>字段说明</h4>
+                <table class="param-table">
+                    <tr>
+                        <th>字段</th>
+                        <th>类型</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>provider</td>
+                        <td>string</td>
+                        <td>LLM 提供商（deepseek/minimax）</td>
+                    </tr>
+                    <tr>
+                        <td>api_key</td>
+                        <td>string</td>
+                        <td>完整的 API Key（供模拟器使用）</td>
+                    </tr>
+                    <tr>
+                        <td>masked_key</td>
+                        <td>string</td>
+                        <td>脱敏的 API Key（供显示使用）</td>
+                    </tr>
+                    <tr>
+                        <td>api_url</td>
+                        <td>string</td>
+                        <td>API 端点 URL</td>
+                    </tr>
+                    <tr>
+                        <td>model</td>
+                        <td>string</td>
+                        <td>模型名称</td>
+                    </tr>
+                    <tr>
+                        <td>is_configured</td>
+                        <td>boolean</td>
+                        <td>是否已配置 API Key</td>
+                    </tr>
+                </table>
+
+                <div class="info-box">
+                    <strong>💡 使用场景：</strong>
+                    <ul>
+                        <li>Python 模拟器获取 LLM 配置</li>
+                        <li>确保模拟器与后端服务使用相同配置</li>
+                        <li>在管理后台修改配置后，模拟器自动使用新配置</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ 安全提示：</strong>
+                    <ul>
+                        <li>此端点返回完整 API Key，请注意安全</li>
+                        <li>建议仅在内网环境使用</li>
+                        <li>Python 模拟器会优先使用此配置，环境变量作为备用</li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <div class="section" id="errors">
