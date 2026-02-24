@@ -231,6 +231,7 @@
                 <li><a href="#summary">摘要管理</a></li>
                 <li><a href="#scoring">消息评分</a></li>
                 <li><a href="#admin">管理接口</a></li>
+                <li><a href="#config">配置接口</a></li>
                 <li><a href="#system">系统接口</a></li>
                 <li><a href="#errors">错误处理</a></li>
                 <li><a href="#examples">使用示例</a></li>
@@ -1477,6 +1478,136 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                         <li>所有消息（messages表）</li>
                         <li>消息相关性评分（message_relevance_scores表）</li>
                         <li>总结历史（summary_history表）</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="config">
+            <h2>⚙️ 配置接口</h2>
+
+            <div class="endpoint">
+                <div>
+                    <span class="method get">GET</span>
+                    <span class="path">/api/admin/config/api-key</span>
+                </div>
+                <h3>获取 API Key 配置状态</h3>
+                <p>获取当前 DeepSeek API Key 的配置状态。返回掩码后的 API Key 以保护安全。</p>
+
+                <h4>响应示例</h4>
+                <div class="code-block">{
+  "is_configured": true,
+  "masked_key": "sk-abc12...xyz9",
+  "api_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat"
+}</div>
+
+                <h4>响应字段说明</h4>
+                <table class="param-table">
+                    <tr>
+                        <th>字段名</th>
+                        <th>类型</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>is_configured</td>
+                        <td>boolean</td>
+                        <td>API Key 是否已配置</td>
+                    </tr>
+                    <tr>
+                        <td>masked_key</td>
+                        <td>string</td>
+                        <td>掩码后的 API Key（仅显示前8位和后4位）</td>
+                    </tr>
+                    <tr>
+                        <td>api_url</td>
+                        <td>string</td>
+                        <td>DeepSeek API 地址</td>
+                    </tr>
+                    <tr>
+                        <td>model</td>
+                        <td>string</td>
+                        <td>使用的模型名称</td>
+                    </tr>
+                </table>
+
+                <div class="info-box">
+                    <strong>💡 使用场景：</strong>
+                    <ul>
+                        <li>管理后台显示配置状态</li>
+                        <li>检查 API Key 是否已配置</li>
+                        <li>验证配置信息</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div>
+                    <span class="method post">POST</span>
+                    <span class="path">/api/admin/config/api-key</span>
+                </div>
+                <h3>更新 API Key 配置</h3>
+                <p>更新 DeepSeek API Key 配置。配置会写入 .env 文件，需要重启 Celery Worker 才能生效。</p>
+
+                <h4>请求体</h4>
+                <div class="code-block">{
+  "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+}</div>
+
+                <h4>请求参数说明</h4>
+                <table class="param-table">
+                    <tr>
+                        <th>参数名</th>
+                        <th>类型</th>
+                        <th>必填</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>api_key</td>
+                        <td>string</td>
+                        <td>是</td>
+                        <td>DeepSeek API Key（必须以 sk- 开头，长度至少 20 个字符）</td>
+                    </tr>
+                </table>
+
+                <h4>成功响应示例</h4>
+                <div class="code-block">{
+  "success": true,
+  "message": "API Key updated successfully. Please restart Celery Worker to apply changes.",
+  "restart_required": true
+}</div>
+
+                <h4>错误响应示例</h4>
+                <div class="code-block">{
+  "detail": "Invalid API Key format (should start with 'sk-')"
+}</div>
+
+                <div class="warning-box">
+                    <strong>⚠️ 重要提示：</strong>
+                    <ul>
+                        <li>更新 API Key 后必须重启 Celery Worker 才能生效</li>
+                        <li>重启命令：<code>pkill -f celery && python quick_start.py</code></li>
+                        <li>API Key 会直接写入 .env 文件</li>
+                        <li>请妥善保管 API Key，不要泄露</li>
+                    </ul>
+                </div>
+
+                <div class="info-box">
+                    <strong>💡 验证规则：</strong>
+                    <ul>
+                        <li>API Key 不能为空</li>
+                        <li>必须以 "sk-" 开头</li>
+                        <li>长度至少 20 个字符</li>
+                    </ul>
+                </div>
+
+                <div class="info-box">
+                    <strong>💡 配置后启用的功能：</strong>
+                    <ul>
+                        <li>消息评分 - 自动评估消息相关性</li>
+                        <li>对话总结 - 定期生成对话总结和建议</li>
+                        <li>自动生成新话题 - 话题关闭后自动创建新话题</li>
+                        <li>智能体模拟器（LLM模式）- 智能体使用 LLM 生成回复</li>
                     </ul>
                 </div>
             </div>
