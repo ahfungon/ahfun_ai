@@ -736,6 +736,33 @@
         </div>
     </div>
 
+    <!-- Modal for editing agent -->
+    <div id="editAgentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>编辑智能体</span>
+                <span class="modal-close" onclick="admin.closeEditAgentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">智能体名称</label>
+                    <input type="text" id="edit-agent-name" placeholder="输入智能体名称" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">系统提示词</label>
+                    <textarea id="edit-agent-prompt" placeholder="例如：你是一个友好的助手，说话风格幽默风趣。" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; min-height: 100px; resize: vertical;"></textarea>
+                    <div style="margin-top: 5px; color: #7f8c8d; font-size: 12px;">
+                        系统提示词用于配置智能体的人设和发言风格
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="admin.closeEditAgentModal()">取消</button>
+                    <button class="btn btn-primary" onclick="admin.saveEditAgent()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const admin = {
             apiUrl: '/api',
@@ -869,9 +896,10 @@
                                 <tr>
                                     <th>Agent ID</th>
                                     <th>名称</th>
-                                    <th>Token Hash</th>
+                                    <th>系统提示词</th>
                                     <th>消息数</th>
                                     <th>注册时间</th>
+                                    <th>操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -880,12 +908,17 @@
                                         <td><code>${agent.agent_id}</code></td>
                                         <td>${agent.agent_name}</td>
                                         <td>
-                                            <span class="token-display" title="${agent.auth_token_hash}">
-                                                ${agent.auth_token_hash.substring(0, 16)}...
+                                            <span class="token-display" title="${agent.system_prompt || '未设置'}">
+                                                ${agent.system_prompt ? (agent.system_prompt.substring(0, 30) + '...') : '<span style="color: #999;">未设置</span>'}
                                             </span>
                                         </td>
                                         <td>${agent.message_count}</td>
                                         <td>${new Date(agent.created_at).toLocaleString('zh-CN')}</td>
+                                        <td>
+                                            <button class="btn btn-primary btn-sm" onclick="admin.showEditAgentModal('${agent.agent_id}', '${agent.agent_name.replace(/'/g, "\\'")}', \`${(agent.system_prompt || '').replace(/`/g, '\\`')}\`)">
+                                                编辑
+                                            </button>
+                                        </td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -1333,6 +1366,58 @@
 
             closeModal() {
                 document.getElementById('messageModal').classList.remove('active');
+            },
+
+            // ===== Agent Management =====
+            currentEditAgentId: null,
+
+            showEditAgentModal(agentId, agentName, systemPrompt) {
+                this.currentEditAgentId = agentId;
+                document.getElementById('edit-agent-name').value = agentName;
+                document.getElementById('edit-agent-prompt').value = systemPrompt || '';
+                document.getElementById('editAgentModal').classList.add('active');
+            },
+
+            closeEditAgentModal() {
+                document.getElementById('editAgentModal').classList.remove('active');
+                this.currentEditAgentId = null;
+            },
+
+            async saveEditAgent() {
+                const agentId = this.currentEditAgentId;
+                const agentName = document.getElementById('edit-agent-name').value.trim();
+                const systemPrompt = document.getElementById('edit-agent-prompt').value.trim();
+
+                if (!agentName) {
+                    alert('请输入智能体名称');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/agents/${agentId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            agent_name: agentName,
+                            system_prompt: systemPrompt || null
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        alert('智能体更新成功！');
+                        this.closeEditAgentModal();
+                        this.loadAgents(); // 刷新列表
+                    } else {
+                        alert('更新失败：' + (data.detail || data.message || '未知错误'));
+                    }
+                } catch (error) {
+                    console.error('更新失败:', error);
+                    alert('更新失败：' + error.message);
+                }
             },
 
             // ===== Scoring Monitor =====
