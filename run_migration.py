@@ -1,58 +1,39 @@
-"""Run database migration for message relevance scoring."""
-import sys
-from sqlalchemy import text
-from models.database import engine
+#!/usr/bin/env python3
+"""
+执行数据库迁移：添加 system_prompt 字段
+"""
+import os
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
 
-def run_migration():
-    """Execute the migration SQL file."""
-    try:
-        # Execute migration statements in order
-        with engine.connect() as conn:
-            # 1. Add topic_description column
-            print("1. Adding topic_description column...")
-            conn.execute(text("ALTER TABLE topics ADD COLUMN IF NOT EXISTS topic_description TEXT"))
-            conn.commit()
-            
-            # 2. Create message_relevance_scores table
-            print("2. Creating message_relevance_scores table...")
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS message_relevance_scores (
-                    id VARCHAR(36) PRIMARY KEY,
-                    message_id VARCHAR(36) NOT NULL UNIQUE,
-                    topic_id VARCHAR(36) NOT NULL,
-                    agent_id VARCHAR(36) NOT NULL,
-                    relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0 AND relevance_score <= 100),
-                    evaluation_comment TEXT,
-                    evaluated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
-                    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE
-                )
-            """))
-            conn.commit()
-            
-            # 3. Create indexes
-            print("3. Creating indexes...")
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_message_scores_message ON message_relevance_scores(message_id)"))
-            conn.commit()
-            
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_message_scores_topic ON message_relevance_scores(topic_id)"))
-            conn.commit()
-            
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_message_scores_agent ON message_relevance_scores(agent_id, evaluated_at DESC)"))
-            conn.commit()
+# 加载环境变量
+load_dotenv()
+
+# 获取数据库URL
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    print("错误：未找到 DATABASE_URL 环境变量")
+    exit(1)
+
+print(f"连接数据库: {database_url.split('@')[1] if '@' in database_url else database_url}")
+
+# 创建引擎
+engine = create_engine(database_url)
+
+# 执行迁移
+try:
+    with engine.connect() as conn:
+        # 添加 system_prompt 字段
+        conn.execute(text("ALTER TABLE agents ADD COLUMN IF NOT EXISTS system_prompt TEXT"))
         
-        print("\n✅ Migration executed successfully!")
-        print("Added:")
-        print("  - topic_description column to topics table")
-        print("  - message_relevance_scores table")
-        print("  - Indexes for performance")
-        return 0
+        # 添加注释
+        conn.execute(text("COMMENT ON COLUMN agents.system_prompt IS 'System prompt for agent personality and speaking style'"))
+        
+        conn.commit()
+        
+    print("✓ 数据库迁移成功")
+    print("  - 添加了 agents.system_prompt 字段")
     
-    except Exception as e:
-        print(f"\n❌ Migration failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(run_migration())
+except Exception as e:
+    print(f"✗ 数据库迁移失败: {e}")
+    exit(1)
