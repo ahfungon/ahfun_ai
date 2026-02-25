@@ -2,91 +2,172 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>MiniMax 测试</title>
+    <title>MiniMax 代理测试</title>
     <style>
         body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
-        button { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; margin: 5px; }
         button:hover { background: #005a9e; }
         pre { background: #252526; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .info { color: #569cd6; }
     </style>
 </head>
 <body>
-    <h1>🔍 MiniMax API 直接测试</h1>
-    <p>这个页面会直接测试 MiniMax API，不经过智能体模拟器的复杂逻辑。</p>
-    <button onclick="testAPI()">🚀 测试 MiniMax API</button>
+    <h1>🔍 MiniMax 代理端点测试</h1>
+    <p>这个页面测试通过后端代理调用 MiniMax API（避免 CORS 问题）。</p>
+    
+    <div>
+        <button onclick="testProxy('minimax')">🚀 测试 MiniMax 代理</button>
+        <button onclick="testProxy('deepseek')">🚀 测试 DeepSeek 代理</button>
+        <button onclick="testBoth()">🚀 测试两个 LLM</button>
+    </div>
+    
     <pre id="result">点击按钮开始测试...</pre>
 
     <script>
-        async function testAPI() {
+        async function testProxy(provider) {
             const result = document.getElementById('result');
-            result.textContent = '正在测试...\n\n';
+            result.textContent = `正在测试 ${provider.toUpperCase()} 代理...\n\n`;
             
             try {
-                // 1. 获取配置
+                // 1. 获取配置（可选，仅用于显示）
                 result.textContent += '步骤 1: 获取配置...\n';
                 const configResp = await fetch('/api/admin/config/llm');
                 const config = await configResp.json();
                 
                 result.textContent += '✅ 配置获取成功\n\n';
-                result.textContent += '=== MiniMax 配置 ===\n';
-                result.textContent += JSON.stringify(config.minimax, null, 2) + '\n\n';
+                result.textContent += `=== ${provider.toUpperCase()} 配置 ===\n`;
+                result.textContent += JSON.stringify(config[provider], null, 2) + '\n\n';
                 
-                // 2. 调用 API
-                const apiUrl = config.minimax.api_url + '/chat/completions';
-                result.textContent += '步骤 2: 调用 MiniMax API...\n';
-                result.textContent += '调用 URL: ' + apiUrl + '\n';
-                result.textContent += '模型: ' + config.minimax.model + '\n\n';
+                if (!config[provider].is_configured) {
+                    result.textContent += `❌ ${provider.toUpperCase()} 未配置 API Key\n`;
+                    result.textContent += '请在系统配置中设置 API Key\n';
+                    return;
+                }
                 
-                const apiResp = await fetch(apiUrl, {
+                // 2. 通过代理调用 API
+                result.textContent += `步骤 2: 通过代理调用 ${provider.toUpperCase()} API...\n`;
+                result.textContent += '代理端点: /api/admin/llm/proxy\n\n';
+                
+                const startTime = Date.now();
+                const apiResp = await fetch('/api/admin/llm/proxy', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + config.minimax.api_key
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: config.minimax.model,
-                        messages: [{role: 'user', content: 'Say hello in one word'}],
-                        max_tokens: 10,
+                        provider: provider,
+                        messages: [{role: 'user', content: '你好，请用一句话介绍你自己'}],
+                        max_tokens: 100,
                         temperature: 0.7
                     })
                 });
+                const duration = Date.now() - startTime;
                 
-                result.textContent += 'HTTP 状态码: ' + apiResp.status + '\n\n';
+                result.textContent += 'HTTP 状态码: ' + apiResp.status + '\n';
+                result.textContent += '响应时间: ' + duration + 'ms\n\n';
                 
                 if (apiResp.ok) {
                     const data = await apiResp.json();
-                    result.textContent += '✅ API 调用成功！\n\n';
+                    result.textContent += '✅ 代理调用成功！\n\n';
                     result.textContent += '=== 响应数据 ===\n';
                     result.textContent += JSON.stringify(data, null, 2) + '\n\n';
                     
-                    if (data.choices && data.choices[0]) {
-                        const content = data.choices[0].message.content;
-                        result.textContent += '💬 响应内容: ' + content + '\n\n';
-                        result.textContent += '🎉 测试成功！MiniMax API 工作正常。\n';
-                        result.textContent += '\n如果智能体模拟器还是失败，请：\n';
-                        result.textContent += '1. 清除浏览器缓存（Ctrl+Shift+Delete）\n';
-                        result.textContent += '2. 强制刷新页面（Ctrl+F5 或 Cmd+Shift+R）\n';
-                        result.textContent += '3. 或使用无痕模式测试\n';
+                    if (data.content) {
+                        result.textContent += '💬 响应内容:\n';
+                        result.textContent += data.content + '\n\n';
+                        result.textContent += `🎉 ${provider.toUpperCase()} 代理测试成功！\n\n`;
+                        result.textContent += '✅ 没有 CORS 问题\n';
+                        result.textContent += '✅ API Key 安全（不暴露在前端）\n';
+                        result.textContent += '✅ 可以在智能体模拟器中使用\n';
                     }
                 } else {
                     const errorData = await apiResp.json().catch(() => ({}));
-                    result.textContent += '❌ API 调用失败\n\n';
+                    result.textContent += '❌ 代理调用失败\n\n';
                     result.textContent += '=== 错误响应 ===\n';
-                    result.textContent += JSON.stringify(errorData, null, 2);
+                    result.textContent += JSON.stringify(errorData, null, 2) + '\n\n';
+                    
+                    if (errorData.detail) {
+                        result.textContent += '错误详情: ' + errorData.detail + '\n';
+                    }
                 }
                 
             } catch (error) {
                 result.textContent += '\n\n❌ 错误: ' + error.message + '\n\n';
                 result.textContent += '错误类型: ' + error.name + '\n';
-                result.textContent += '错误堆栈:\n' + error.stack;
+                result.textContent += '错误堆栈:\n' + error.stack + '\n\n';
                 
-                if (error.message === 'Failed to fetch') {
-                    result.textContent += '\n\n可能的原因：\n';
-                    result.textContent += '1. 网络连接问题\n';
-                    result.textContent += '2. CORS 问题\n';
-                    result.textContent += '3. API URL 不正确\n';
-                }
+                result.textContent += '可能的原因：\n';
+                result.textContent += '1. 后端服务未启动\n';
+                result.textContent += '2. 代理端点未正确配置\n';
+                result.textContent += '3. 网络连接问题\n';
             }
+        }
+        
+        async function testBoth() {
+            const result = document.getElementById('result');
+            result.textContent = '正在测试两个 LLM 代理...\n\n';
+            
+            // 测试 DeepSeek
+            result.textContent += '=' .repeat(60) + '\n';
+            result.textContent += '测试 1: DeepSeek\n';
+            result.textContent += '='.repeat(60) + '\n\n';
+            
+            try {
+                const deepseekResp = await fetch('/api/admin/llm/proxy', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider: 'deepseek',
+                        messages: [{role: 'user', content: '你好'}],
+                        max_tokens: 50,
+                        temperature: 0.7
+                    })
+                });
+                
+                if (deepseekResp.ok) {
+                    const data = await deepseekResp.json();
+                    result.textContent += '✅ DeepSeek 代理成功\n';
+                    result.textContent += '响应: ' + data.content.substring(0, 100) + '...\n\n';
+                } else {
+                    result.textContent += '❌ DeepSeek 代理失败: ' + deepseekResp.status + '\n\n';
+                }
+            } catch (error) {
+                result.textContent += '❌ DeepSeek 代理异常: ' + error.message + '\n\n';
+            }
+            
+            // 测试 MiniMax
+            result.textContent += '='.repeat(60) + '\n';
+            result.textContent += '测试 2: MiniMax\n';
+            result.textContent += '='.repeat(60) + '\n\n';
+            
+            try {
+                const minimaxResp = await fetch('/api/admin/llm/proxy', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        provider: 'minimax',
+                        messages: [{role: 'user', content: '你好'}],
+                        max_tokens: 50,
+                        temperature: 0.7
+                    })
+                });
+                
+                if (minimaxResp.ok) {
+                    const data = await minimaxResp.json();
+                    result.textContent += '✅ MiniMax 代理成功\n';
+                    result.textContent += '响应: ' + data.content.substring(0, 100) + '...\n\n';
+                } else {
+                    result.textContent += '❌ MiniMax 代理失败: ' + minimaxResp.status + '\n\n';
+                }
+            } catch (error) {
+                result.textContent += '❌ MiniMax 代理异常: ' + error.message + '\n\n';
+            }
+            
+            result.textContent += '='.repeat(60) + '\n';
+            result.textContent += '测试完成\n';
+            result.textContent += '='.repeat(60) + '\n';
         }
     </script>
 </body>
