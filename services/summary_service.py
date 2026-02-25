@@ -113,7 +113,7 @@ class SummaryService:
             Exception: If LLM API call fails
         """
         # Build prompt
-        prompt = self._build_summary_prompt(topic.summary, new_messages)
+        prompt = self._build_summary_prompt(topic, new_messages)
 
         # Prepare request parameters for logging
         request_params = {
@@ -331,14 +331,14 @@ class SummaryService:
     
     def _build_summary_prompt(
         self,
-        old_summary: str,
+        topic: Topic,
         new_messages: List[Message]
     ) -> str:
         """
         Build prompt for LLM summary generation (DeepSeek or MiniMax).
         
         Args:
-            old_summary: Previous cumulative summary
+            topic: Topic object containing title, description, and old summary
             new_messages: New messages to summarize
         
         Returns:
@@ -358,7 +358,9 @@ class SummaryService:
             # Use custom prompt template with variable substitution
             try:
                 return custom_prompt.format(
-                    previous_summary=old_summary if old_summary else "（暂无历史总结）",
+                    topic_title=topic.title,
+                    topic_description=topic.topic_description or "（无描述）",
+                    previous_summary=topic.summary if topic.summary else "（暂无历史总结）",
                     new_messages=messages_text
                 )
             except KeyError as e:
@@ -368,7 +370,7 @@ class SummaryService:
         prompt = f"""你是一个对话总结助手。请将以下内容压缩为简洁的中文摘要。
 
 【历史总结】
-{old_summary if old_summary else "（暂无历史总结）"}
+{topic.summary if topic.summary else "（暂无历史总结）"}
 
 【新对话内容】
 {messages_text}
