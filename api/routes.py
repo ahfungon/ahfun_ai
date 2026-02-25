@@ -1676,85 +1676,118 @@ async def restart_worker():
     """
     import subprocess
     import os
+    import shutil
     
     try:
-        # 优先使用快速重启脚本
+        # Method 1: Try systemd (most reliable for production)
+        systemctl_path = shutil.which("systemctl")
+        if systemctl_path:
+            try:
+                # Use sudo for systemctl (configured in sudoers)
+                result = subprocess.run(
+                    ["sudo", systemctl_path, "restart", "dual-agent-celery.service"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode == 0:
+                    return {
+                        "success": True,
+                        "message": "Worker restarted successfully (systemd)",
+                        "method": "systemd",
+                        "note": "Worker is restarting. Please wait a few seconds for it to be ready."
+                    }
+                else:
+                    # systemd failed, try other methods
+                    pass
+            except subprocess.TimeoutExpired:
+                return {
+                    "success": True,
+                    "message": "Worker restart initiated (systemd, background)",
+                    "method": "systemd",
+                    "note": "The restart is in progress. Please wait 10-15 seconds and check Worker status."
+                }
+            except Exception:
+                pass
+        
+        # Method 2: Try restart scripts
         quick_script = "restart_worker_quick.sh"
         normal_script = "restart_worker.sh"
         
         if os.path.exists(quick_script):
             script_path = quick_script
-            timeout = 5  # 快速脚本只需要 5 秒
+            timeout = 5
         elif os.path.exists(normal_script):
             script_path = normal_script
-            timeout = 20  # 普通脚本需要更长时间
+            timeout = 20
         else:
-            # 如果脚本都不存在，直接执行命令
+            script_path = None
+        
+        if script_path:
             try:
-                # 停止 Worker
-                subprocess.run(
-                    ["pkill", "-f", "celery -A workers.celery_app worker"],
-                    timeout=3
+                result = subprocess.run(
+                    ["bash", script_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
                 )
-                # 等待一下
-                import time
-                time.sleep(1)
-                # 启动 Worker（后台）
-                subprocess.Popen(
-                    ["celery", "-A", "workers.celery_app", "worker", 
-                     "--loglevel=info", "--logfile=logs/worker.log"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
+                
+                if result.returncode == 0:
+                    return {
+                        "success": True,
+                        "message": "Worker restarted successfully (script)",
+                        "method": "script",
+                        "output": result.stdout if result.stdout else "Restart initiated",
+                        "note": "Worker is restarting. Please wait a few seconds for it to be ready.",
+                        "script_used": script_path
+                    }
+            except subprocess.TimeoutExpired:
                 return {
                     "success": True,
-                    "message": "Worker restart initiated successfully (direct command)",
-                    "note": "Worker is restarting. Please wait a few seconds for it to be ready."
+                    "message": "Worker restart initiated (script, background)",
+                    "method": "script",
+                    "note": "The restart is in progress. Please wait 10-15 seconds and check Worker status."
                 }
-            except Exception as e:
-                return {
-                    "success": False,
-                    "message": f"Failed to restart Worker: {str(e)}",
-                    "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
-                }
+            except Exception:
+                pass
         
-        # 执行重启脚本
-        result = subprocess.run(
-            ["bash", script_path],
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        
-        if result.returncode == 0:
+        # Method 3: Direct command (fallback)
+        try:
+            pkill_path = shutil.which("pkill") or "/usr/bin/pkill"
+            # Stop Worker
+            subprocess.run(
+                [pkill_path, "-f", "celery -A workers.celery_app worker"],
+                timeout=3
+            )
+            # Wait a bit
+            import time
+            time.sleep(1)
+            # Start Worker (background)
+            subprocess.Popen(
+                ["celery", "-A", "workers.celery_app", "worker", 
+                 "--loglevel=info", "--logfile=logs/worker.log"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
             return {
                 "success": True,
-                "message": "Worker restart initiated successfully",
-                "output": result.stdout if result.stdout else "Restart initiated",
-                "note": "Worker is restarting. Please wait a few seconds for it to be ready.",
-                "script_used": script_path
+                "message": "Worker restart initiated successfully (direct command)",
+                "method": "direct",
+                "note": "Worker is restarting. Please wait a few seconds for it to be ready."
             }
-        else:
+        except Exception as e:
             return {
                 "success": False,
-                "message": "Worker restart failed",
-                "error": result.stderr,
-                "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+                "message": f"Failed to restart Worker: {str(e)}",
+                "manual_command": "sudo systemctl restart dual-agent-celery.service"
             }
     
-    except subprocess.TimeoutExpired:
-        # 超时不一定是失败，Worker 可能正在后台启动
-        return {
-            "success": True,  # 改为 True，因为重启可能正在进行
-            "message": "Worker restart initiated (background process)",
-            "note": "The restart is in progress. Please wait 10-15 seconds and check Worker status.",
-            "warning": "Restart command timed out, but Worker may still be starting in the background."
-        }
     except Exception as e:
         return {
             "success": False,
             "message": f"Failed to restart Worker: {str(e)}",
-            "manual_command": "pkill -f 'celery -A workers.celery_app worker' && celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &"
+            "manual_command": "sudo systemctl restart dual-agent-celery.service"
         }
 
 
@@ -1767,44 +1800,111 @@ async def get_worker_status():
         Worker status information
     """
     import subprocess
+    import shutil
     
     try:
-        # Check if Worker process is running
-        result = subprocess.run(
-            ["pgrep", "-f", "celery.*worker"],
-            capture_output=True,
-            text=True
-        )
+        # Try multiple methods to check Worker status
         
-        if result.returncode == 0:
-            pids = result.stdout.strip().split('\n')
-            
-            # Get process details
-            processes = []
-            for pid in pids:
-                if pid:
+        # Method 1: Check systemd service (most reliable for production)
+        systemctl_path = shutil.which("systemctl")
+        if systemctl_path:
+            try:
+                # Use sudo for systemctl (configured in sudoers)
+                result = subprocess.run(
+                    ["sudo", systemctl_path, "is-active", "dual-agent-celery.service"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip() == "active":
+                    # Get process count
                     ps_result = subprocess.run(
-                        ["ps", "-p", pid, "-o", "pid,pcpu,pmem,etime"],
+                        ["sudo", systemctl_path, "status", "dual-agent-celery.service"],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        timeout=5
                     )
-                    if ps_result.returncode == 0:
-                        lines = ps_result.stdout.strip().split('\n')
-                        if len(lines) > 1:
-                            processes.append(lines[1].strip())
+                    process_count = ps_result.stdout.count("celery") if ps_result.returncode == 0 else 1
+                    
+                    return {
+                        "running": True,
+                        "message": "Worker is running (systemd)",
+                        "process_count": process_count,
+                        "method": "systemd"
+                    }
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception:
+                pass
+        
+        # Method 2: Check with pgrep (fallback)
+        pgrep_path = shutil.which("pgrep") or "/usr/bin/pgrep"
+        try:
+            result = subprocess.run(
+                [pgrep_path, "-f", "celery.*worker"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
             
-            return {
-                "running": True,
-                "message": "Worker is running",
-                "process_count": len(pids),
-                "processes": processes
-            }
-        else:
-            return {
-                "running": False,
-                "message": "Worker is not running",
-                "process_count": 0
-            }
+            if result.returncode == 0:
+                pids = [p for p in result.stdout.strip().split('\n') if p]
+                
+                # Get process details
+                processes = []
+                ps_path = shutil.which("ps") or "/usr/bin/ps"
+                for pid in pids[:10]:  # Limit to 10 processes
+                    try:
+                        ps_result = subprocess.run(
+                            [ps_path, "-p", pid, "-o", "pid,pcpu,pmem,etime"],
+                            capture_output=True,
+                            text=True,
+                            timeout=2
+                        )
+                        if ps_result.returncode == 0:
+                            lines = ps_result.stdout.strip().split('\n')
+                            if len(lines) > 1:
+                                processes.append(lines[1].strip())
+                    except Exception:
+                        continue
+                
+                return {
+                    "running": True,
+                    "message": "Worker is running (pgrep)",
+                    "process_count": len(pids),
+                    "processes": processes,
+                    "method": "pgrep"
+                }
+        except subprocess.TimeoutExpired:
+            pass
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+        
+        # Method 3: Check Celery inspect (most accurate but slower)
+        try:
+            from workers.celery_app import celery_app
+            inspect = celery_app.control.inspect(timeout=3)
+            active_workers = inspect.active()
+            
+            if active_workers:
+                return {
+                    "running": True,
+                    "message": "Worker is running (celery inspect)",
+                    "process_count": len(active_workers),
+                    "workers": list(active_workers.keys()),
+                    "method": "celery_inspect"
+                }
+        except Exception:
+            pass
+        
+        # No method succeeded
+        return {
+            "running": False,
+            "message": "Worker is not running",
+            "process_count": 0
+        }
     
     except Exception as e:
         return {
