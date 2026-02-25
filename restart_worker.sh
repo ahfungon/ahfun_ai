@@ -25,7 +25,8 @@ sleep 2
 # 启动 Worker
 echo ""
 echo "3. 启动 Celery Worker..."
-celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log &
+# 指定监听所有队列：default, summary_jobs, periodic_tasks
+celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log -Q default,summary_jobs,periodic_tasks &
 
 if [ $? -eq 0 ]; then
     echo "   ✅ Worker 已启动"

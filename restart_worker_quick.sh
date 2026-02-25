@@ -9,7 +9,8 @@ pkill -f "celery -A workers.celery_app worker" 2>/dev/null
 sleep 1
 
 # 后台启动 Worker（不等待）
-nohup celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log > /dev/null 2>&1 &
+# 指定监听所有队列：default, summary_jobs, periodic_tasks
+nohup celery -A workers.celery_app worker --loglevel=info --logfile=logs/worker.log -Q default,summary_jobs,periodic_tasks > /dev/null 2>&1 &
 
 # 立即返回
 echo "Worker restart initiated"
