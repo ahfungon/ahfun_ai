@@ -1935,6 +1935,14 @@
                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
                         </div>
                         <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">系统提示词</label>
+                            <textarea id="sim-agent-prompt" placeholder="例如：你是一个友好的助手，说话风格幽默风趣。" 
+                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; min-height: 80px; resize: vertical;"></textarea>
+                            <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
+                                💡 系统提示词用于配置智能体的人设和发言风格（可选）
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 600;">发言模式</label>
                             <select id="sim-agent-mode" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
                                 <option value="template">模板模式（快速，无成本）</option>
@@ -1968,6 +1976,7 @@
 
             async addAgent() {
                 const name = document.getElementById('sim-agent-name').value.trim();
+                const systemPrompt = document.getElementById('sim-agent-prompt').value.trim();
                 const interval = parseInt(document.getElementById('sim-agent-interval').value);
                 const mode = document.getElementById('sim-agent-mode').value;
 
@@ -1978,10 +1987,15 @@
 
                 try {
                     // 注册智能体
+                    const requestBody = { agent_name: name };
+                    if (systemPrompt) {
+                        requestBody.system_prompt = systemPrompt;
+                    }
+                    
                     const response = await fetch('/api/agent/register', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ agent_name: name })
+                        body: JSON.stringify(requestBody)
                     });
 
                     if (!response.ok) throw new Error('注册失败');
@@ -1992,6 +2006,7 @@
                         id: data.agent_id,
                         name: data.agent_name,
                         token: data.auth_token,
+                        systemPrompt: systemPrompt || '',
                         interval: interval,
                         mode: mode,  // 添加模式字段
                         running: false,
@@ -2029,9 +2044,11 @@
                             <div>
                                 <div style="font-weight: 600; color: #2c3e50;">${agent.name} ${modeIcon}</div>
                                 <div style="font-size: 12px; color: #7f8c8d;">${modeText}模式 | 间隔: ${agent.interval}秒 | 消息: ${agent.messageCount}</div>
+                                ${agent.systemPrompt ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;" title="${agent.systemPrompt.replace(/"/g, '&quot;')}">💡 ${agent.systemPrompt.substring(0, 30)}${agent.systemPrompt.length > 30 ? '...' : ''}</div>` : ''}
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="width: 8px; height: 8px; border-radius: 50%; background: ${agent.running ? '#10b981' : '#94a3b8'};"></span>
+                                <button class="btn btn-sm" onclick="simulator.showEditAgentModal(${index})" style="background: #3b82f6; color: white; padding: 4px 8px;">编辑</button>
                                 <button class="btn btn-sm" onclick="simulator.removeAgent(${index})" style="background: #f56565; color: white; padding: 4px 8px;">删除</button>
                             </div>
                         </div>
@@ -2108,6 +2125,96 @@
                 this.renderAgentList();
                 this.updateStats();
                 this.log(`🗑️ 删除智能体: ${agent.name}`, 'info');
+            },
+
+            showEditAgentModal(index) {
+                const agent = this.agents[index];
+                this.currentEditIndex = index;
+                
+                const html = `
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 15px;">编辑模拟智能体</h3>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">智能体名称</label>
+                            <input type="text" id="edit-sim-agent-name" value="${agent.name}" 
+                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">系统提示词</label>
+                            <textarea id="edit-sim-agent-prompt" 
+                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; min-height: 80px; resize: vertical;">${agent.systemPrompt || ''}</textarea>
+                            <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
+                                💡 系统提示词用于配置智能体的人设和发言风格（可选）
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">发言模式</label>
+                            <select id="edit-sim-agent-mode" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                <option value="template" ${agent.mode === 'template' ? 'selected' : ''}>模板模式（快速，无成本）</option>
+                                <option value="deepseek" ${agent.mode === 'deepseek' ? 'selected' : ''}>DeepSeek 调用（智能，需系统配置）</option>
+                                <option value="minimax" ${agent.mode === 'minimax' ? 'selected' : ''}>MiniMax 调用（智能，需系统配置）</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">发言间隔（秒）</label>
+                            <input type="number" id="edit-sim-agent-interval" value="${agent.interval}" min="5" max="300"
+                                   style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        </div>
+                        <div style="margin-top: 20px; display: flex; gap: 10px;">
+                            <button class="btn btn-primary" onclick="simulator.saveEditAgent()">保存</button>
+                            <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">取消</button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('modal-body').innerHTML = html;
+                document.getElementById('messageModal').classList.add('active');
+            },
+
+            async saveEditAgent() {
+                const index = this.currentEditIndex;
+                const agent = this.agents[index];
+                
+                const newName = document.getElementById('edit-sim-agent-name').value.trim();
+                const newSystemPrompt = document.getElementById('edit-sim-agent-prompt').value.trim();
+                const newMode = document.getElementById('edit-sim-agent-mode').value;
+                const newInterval = parseInt(document.getElementById('edit-sim-agent-interval').value);
+
+                if (!newName) {
+                    alert('请输入智能体名称');
+                    return;
+                }
+
+                try {
+                    // 调用后端API更新智能体信息
+                    const response = await fetch(`/api/admin/agents/${agent.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            agent_name: newName,
+                            system_prompt: newSystemPrompt || null
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || error.message || '更新失败');
+                    }
+
+                    // 更新本地数据
+                    agent.name = newName;
+                    agent.systemPrompt = newSystemPrompt;
+                    agent.mode = newMode;
+                    agent.interval = newInterval;
+
+                    this.saveAgents();
+                    this.renderAgentList();
+                    admin.closeModal();
+                    
+                    this.log(`✏️ 智能体 ${newName} 更新成功`, 'success');
+                } catch (error) {
+                    console.error('更新失败:', error);
+                    alert('更新失败：' + error.message);
+                }
             },
 
             async sendMessage(agent) {
