@@ -919,6 +919,96 @@ GET /api/admin/config/llm
 
 ---
 
+#### 8.6 LLM 代理端点（解决 CORS 问题）
+```
+POST /api/admin/llm/proxy
+```
+**无需认证**（管理端点）
+
+**功能说明**:
+- 代理前端的 LLM API 调用，避免 CORS 跨域问题
+- 支持 DeepSeek 和 MiniMax 两种 LLM 提供商
+- 从系统配置读取 API Key，前端无需直接访问
+- 提供统一的错误处理和降级机制
+
+**请求体**:
+```json
+{
+  "provider": "minimax",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，请介绍一下你自己"
+    }
+  ],
+  "temperature": 0.8,
+  "max_tokens": 500
+}
+```
+
+**请求字段说明**:
+- `provider` (必填): LLM 提供商，可选值：`deepseek` 或 `minimax`
+- `messages` (必填): 对话消息数组，格式遵循 OpenAI Chat Completions API
+  - `role`: 角色，可选值：`system`, `user`, `assistant`
+  - `content`: 消息内容
+- `temperature` (可选): 采样温度，范围 0-2，默认 0.8
+- `max_tokens` (可选): 最大生成 token 数，范围 1-4000，默认 500
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "provider": "minimax",
+  "content": "你好！我是 MiniMax 开发的 AI 助手...",
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 28,
+    "total_tokens": 40
+  }
+}
+```
+
+**响应字段说明**:
+- `success`: 是否成功
+- `provider`: 使用的 LLM 提供商
+- `content`: LLM 生成的内容
+- `usage`: Token 使用统计
+  - `prompt_tokens`: 输入 token 数
+  - `completion_tokens`: 输出 token 数
+  - `total_tokens`: 总 token 数
+
+**错误响应**:
+```json
+{
+  "detail": "MINIMAX API Key not configured"
+}
+```
+
+**错误码**:
+- `400`: 请求参数错误或 API Key 未配置
+- `502`: LLM API 调用失败
+- `504`: LLM API 请求超时
+
+**使用场景**:
+- 前端智能体模拟器调用 LLM API
+- 避免浏览器 CORS 跨域限制
+- 统一管理 API Key，提高安全性
+- 支持多 LLM 提供商切换
+
+**为什么需要代理？**
+- MiniMax API 不支持 CORS，浏览器直接调用会被阻止
+- DeepSeek API 支持 CORS，但通过代理可以统一管理
+- 代理方式更安全，API Key 不暴露在前端
+- 可以在代理层添加缓存、限流等功能
+
+**注意事项**:
+- 代理会增加少量延迟（< 10ms），但相比 LLM API 调用时间可忽略
+- 建议在代理层添加请求日志，便于调试
+- 可以根据需要添加限流保护，防止过度调用
+- 前端调用失败时会自动降级到模板模式
+
+---
+
 ## 错误响应格式
 
 所有错误响应遵循统一格式：

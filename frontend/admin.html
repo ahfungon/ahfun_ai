@@ -1744,7 +1744,7 @@
 
             async generateLLMReply(topicData, recentMessages, agent) {
                 try {
-                    // 从系统配置获取 LLM 配置
+                    // 检查 LLM 配置是否可用
                     const llmConfig = await this.getLLMConfig(agent.mode);
                     if (!llmConfig) {
                         throw new Error(`未配置 ${agent.mode.toUpperCase()} API Key，请在系统配置中设置`);
@@ -1792,15 +1792,14 @@ ${conversationHistory || '（暂无对话历史）'}
 
 请直接输出回复内容，不要有任何前缀或解释：`;
 
-                    // 调用 LLM API（MiniMax 和 DeepSeek 都使用 OpenAI 兼容格式）
-                    const response = await fetch(llmConfig.api_url + '/chat/completions', {
+                    // 通过后端代理调用 LLM API（避免 CORS 问题）
+                    const response = await fetch('/api/admin/llm/proxy', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${llmConfig.api_key}`
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            model: llmConfig.model,
+                            provider: agent.mode,
                             messages: [
                                 { role: 'user', content: prompt }
                             ],
@@ -1811,11 +1810,11 @@ ${conversationHistory || '（暂无对话历史）'}
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
-                        throw new Error(`${agent.mode.toUpperCase()} API调用失败: ${response.status} ${errorData.error?.message || ''}`);
+                        throw new Error(`${agent.mode.toUpperCase()} API调用失败: ${response.status} ${errorData.detail || ''}`);
                     }
 
                     const data = await response.json();
-                    const reply = data.choices[0].message.content.trim();
+                    const reply = data.content.trim();
                     
                     this.log(`🤖 ${agent.name} 使用 ${agent.mode.toUpperCase()} 生成回复`, 'info');
                     return reply;

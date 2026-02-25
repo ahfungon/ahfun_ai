@@ -1868,3 +1868,124 @@ async def get_llm_config(db: Session = Depends(get_db)):
         "is_configured": bool(deepseek_key if provider == 'deepseek' else minimax_key)
     }
 
+
+class LLMProxyRequest(BaseModel):
+    """Request model for LLM proxy."""
+    provider: str = Field(..., description="LLM provider: deepseek or minimax")
+    messages: list[dict] = Field(..., description="Chat messages")
+    temperature: float = Field(default=0.8, ge=0, le=2)
+    max_tokens: int = Field(default=500, ge=1, le=4000)
+
+
+@router.post("/admin/llm/proxy")
+async def llm_proxy(
+    request: LLMProxyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Proxy LLM API calls to avoid CORS issues.
+    
+    This endpoint allows frontend simulators to call LLM APIs through the backend,
+    avoiding CORS restrictions. Supports both DeepSeek and MiniMax.
+    
+    Args:
+        request: LLM proxy request with provider, messages, and parameters
+    
+    Returns:
+        LLM API response with generated content
+    """
+    from services.system_config_service import SystemConfigService
+    import requests
+    
+    config_service = SystemConfigService(db)
+    
+    # Get configuration for the requested provider
+    if request.provider == 'deepseek':
+        api_key = config_service.get_config_value('deepseek_api_key', '')
+        api_url = "https://api.deepseek.com/v1"
+        model = "deepseek-chat"
+    elif request.provider == 'minimax':
+        api_key = config_service.get_config_value('minimax_api_key', '')
+        api_url = "https://api.minimax.chat/v1"
+        model = "MiniMax-M2.5"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported provider: {request.provider}"
+        )
+    
+    # Check if API key is configured
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{request.provider.upper()} API Key not configured"
+        )
+    
+    # Prepare request to LLM API
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": model,
+        "messages": request.messages,
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens
+    }
+    
+    try:
+        # Call LLM API
+        response = requests.post(
+            f"{api_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        # Handle errors
+        if response.status_code != 200:
+            error_detail = response.text
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"{request.provider.upper()} API error: {error_detail}"
+            )
+        
+        # Return the response
+        data = response.json()
+        
+        # Extract content
+        if "choices" not in data or not data["choices"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Invalid response format from LLM API"
+            )
+        
+        content = data["choices"][0].get("message", {}).get("content", "")
+        
+        return {
+            "success": True,
+            "provider": request.provider,
+            "content": content,
+            "usage": data.get("usage", {})
+        }
+    
+    except requests.Timeout:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"{request.provider.upper()} API request timed out"
+        )
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"{request.provider.upper()} API request failed: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LLM proxy error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to proxy LLM request: {str(e)}"
+        )
+
