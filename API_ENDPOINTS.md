@@ -1106,6 +1106,111 @@ POST /api/admin/scoring/retry?limit=10
 
 ---
 
+## 10. 总结监控接口
+
+#### 10.1 获取总结系统统计
+```
+GET /api/admin/summary/stats
+```
+**无需认证**（管理端点）
+
+返回总结系统的整体统计、任务状态、配置信息和最近话题状态。
+
+**响应字段：**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total_topics | int | 总话题数 |
+| total_summaries | int | 总总结数 |
+| total_jobs | int | 总任务数 |
+| job_stats | object | 任务状态统计（pending/processing/done/failed） |
+| recent_24h_summaries | int | 近24小时总结数 |
+| topics_over_threshold | int | 超过阈值需要总结的话题数 |
+| threshold | int | 总结触发阈值（tokens） |
+| config.provider | string | 当前总结 LLM 提供商 |
+| worker_online | boolean | Celery Worker 是否在线 |
+| summary_queue_length | int | summary_jobs 队列长度 |
+| topics | array | 最近20个话题的状态 |
+| recent_jobs | array | 最近10个总结任务 |
+
+**响应示例：**
+```json
+{
+  "total_topics": 10,
+  "total_summaries": 25,
+  "total_jobs": 30,
+  "job_stats": {
+    "pending": 1,
+    "processing": 0,
+    "done": 28,
+    "failed": 1
+  },
+  "recent_24h_summaries": 5,
+  "topics_over_threshold": 2,
+  "threshold": 2000,
+  "config": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "api_key_configured": true,
+    "api_key_preview": "sk-xxxxx..."
+  },
+  "worker_online": true,
+  "summary_queue_length": 0,
+  "topics": [...],
+  "recent_jobs": [...]
+}
+```
+
+#### 10.2 手动触发总结
+```
+POST /api/admin/summary/trigger/{topic_id}
+```
+**无需认证**（管理端点）
+
+为指定话题手动创建总结任务，即使未达到阈值也可触发。
+
+**路径参数：**
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| topic_id | string | 话题 ID |
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "job_id": "6d7d3ccf-9c37-430b-9785-8c3bd8322c7a",
+  "message": "已为话题「人活着的意义是什么」创建总结任务"
+}
+```
+
+**错误响应：**
+- `404`: 话题不存在
+- `400`: 话题状态不是 active 或已有待处理任务
+
+#### 10.3 测试总结 API 连通性
+```
+POST /api/admin/summary/test
+```
+**无需认证**（管理端点）
+
+向当前配置的 LLM 发送测试总结请求，验证 API 可用性。
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "result": {
+    "summary": "测试总结内容",
+    "suggestion": "continue",
+    "end_score": 75
+  },
+  "duration_ms": 2156
+}
+```
+
+---
+
 ## 错误响应格式
 
 所有错误响应遵循统一格式：
