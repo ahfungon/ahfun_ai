@@ -1,6 +1,7 @@
 """API routes for the Dual Agent Chat Platform."""
 from datetime import datetime
 from typing import Optional
+import time
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -1934,69 +1935,121 @@ async def llm_proxy(
         "max_tokens": request.max_tokens
     }
     
-    try:
-        # Call LLM API
-        response = requests.post(
-            f"{api_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        # Handle errors
-        if response.status_code != 200:
-            error_detail = response.text
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"{request.provider.upper()} API error: {error_detail}"
+    # 重试配置
+    max_retries = 3
+    retry_delays = [1, 2, 4]  # 指数退避
+    timeout = 60  # 增加超时时间到 60 秒
+    
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Call LLM API
+            response = requests.post(
+                f"{api_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=timeout
             )
+            
+            # Handle rate limiting - 需要重试
+            if response.status_code == 429:
+                if attempt < max_retries - 1:
+                    delay = retry_delays[attempt]
+                    logger.warning(f"{request.provider.upper()} rate limit, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"{request.provider.upper()} API rate limit exceeded"
+                    )
+            
+            # Handle server errors (5xx) - 需要重试
+            if 500 <= response.status_code < 600:
+                if attempt < max_retries - 1:
+                    delay = retry_delays[attempt]
+                    logger.warning(f"{request.provider.upper()} server error {response.status_code}, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                else:
+                    error_detail = response.text
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"{request.provider.upper()} API error: {error_detail}"
+                    )
+            
+            # Handle other errors - 不重试
+            if response.status_code != 200:
+                error_detail = response.text
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"{request.provider.upper()} API error: {error_detail}"
+                )
+            
+            # Return the response
+            data = response.json()
+            
+            # Extract content
+            if "choices" not in data or not data["choices"]:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Invalid response format from LLM API"
+                )
+            
+            content = data["choices"][0].get("message", {}).get("content", "")
+            
+            # 过滤 MiniMax 的思考过程标签
+            if request.provider == 'minimax':
+                import re
+                # 移除 <think>...</think> 标签及其内容
+                content = re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
+                
+                # 如果过滤后为空，记录警告并返回原始内容
+                if not content:
+                    logger.warning(f"MiniMax response was completely filtered, returning original")
+                    content = data["choices"][0].get("message", {}).get("content", "")
+            
+            return {
+                "success": True,
+                "provider": request.provider,
+                "content": content,
+                "usage": data.get("usage", {}),
+                "attempts": attempt + 1  # 返回尝试次数
+            }
         
-        # Return the response
-        data = response.json()
+        except HTTPException:
+            raise
+        except requests.Timeout:
+            if attempt < max_retries - 1:
+                delay = retry_delays[attempt]
+                logger.warning(f"{request.provider.upper()} timeout, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
+                last_error = f"{request.provider.upper()} API request timed out after {timeout}s"
+                continue
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail=f"{request.provider.upper()} API request timed out after {max_retries} attempts"
+                )
         
-        # Extract content
-        if "choices" not in data or not data["choices"]:
+        except requests.RequestException as e:
+            if attempt < max_retries - 1:
+                delay = retry_delays[attempt]
+                logger.warning(f"{request.provider.upper()} request failed, retrying in {delay}s (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                time.sleep(delay)
+                last_error = str(e)
+                continue
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"{request.provider.upper()} API request failed: {str(e)}"
+                )
+        except Exception as e:
+            logger.error(f"LLM proxy error: {e}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid response format from LLM API"
+                detail=f"Failed to proxy LLM request: {str(e)}"
             )
-        
-        content = data["choices"][0].get("message", {}).get("content", "")
-        
-        # 过滤 MiniMax 的思考过程标签
-        if request.provider == 'minimax':
-            import re
-            # 移除 <think>...</think> 标签及其内容
-            content = re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
-            
-            # 如果过滤后为空，记录警告并返回原始内容
-            if not content:
-                logger.warning(f"MiniMax response was completely filtered, returning original")
-                content = data["choices"][0].get("message", {}).get("content", "")
-        
-        return {
-            "success": True,
-            "provider": request.provider,
-            "content": content,
-            "usage": data.get("usage", {})
-        }
-    
-    except requests.Timeout:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"{request.provider.upper()} API request timed out"
-        )
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"{request.provider.upper()} API request failed: {str(e)}"
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"LLM proxy error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to proxy LLM request: {str(e)}"
-        )
+
 
