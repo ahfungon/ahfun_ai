@@ -2208,7 +2208,17 @@ async def get_scoring_stats(db: Session = Depends(get_db)):
         scored = m.relevance_score is not None
         delay = None
         if scored and m.evaluated_at and m.created_at:
-            delay = round((m.evaluated_at - m.created_at).total_seconds(), 1)
+            # Handle timezone-aware and timezone-naive datetime comparison
+            try:
+                # If evaluated_at is timezone-aware, convert created_at to UTC
+                if m.evaluated_at.tzinfo is not None:
+                    from datetime import timezone
+                    created_at_utc = m.created_at.replace(tzinfo=timezone.utc) if m.created_at.tzinfo is None else m.created_at
+                    delay = round((m.evaluated_at - created_at_utc).total_seconds(), 1)
+                else:
+                    delay = round((m.evaluated_at - m.created_at).total_seconds(), 1)
+            except (TypeError, AttributeError):
+                delay = None
         messages_list.append({
             "message_id": m.id,
             "agent_name": agent_map.get(m.agent_id, m.agent_id),
@@ -2217,7 +2227,7 @@ async def get_scoring_stats(db: Session = Depends(get_db)):
             "scored": scored,
             "score": m.relevance_score,
             "comment": m.evaluation_comment[:60] + "..." if m.evaluation_comment and len(m.evaluation_comment) > 60 else m.evaluation_comment,
-            "evaluated_at": m.evaluated_at.isoformat() + "Z" if m.evaluated_at else None,
+            "evaluated_at": m.evaluated_at.isoformat() if m.evaluated_at else None,
             "delay_seconds": delay
         })
 
