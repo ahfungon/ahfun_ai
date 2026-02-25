@@ -930,6 +930,9 @@ POST /api/admin/llm/proxy
 - 支持 DeepSeek 和 MiniMax 两种 LLM 提供商
 - 从系统配置读取 API Key，前端无需直接访问
 - 提供统一的错误处理和降级机制
+- **自动重试机制**: 遇到超时或服务器错误时自动重试（最多 3 次）
+- **指数退避**: 重试延迟为 1秒、2秒、4秒
+- **超时时间**: 单次请求超时 60 秒
 
 **请求体**:
 ```json
@@ -964,7 +967,8 @@ POST /api/admin/llm/proxy
     "prompt_tokens": 12,
     "completion_tokens": 28,
     "total_tokens": 40
-  }
+  },
+  "attempts": 1
 }
 ```
 
@@ -976,6 +980,7 @@ POST /api/admin/llm/proxy
   - `prompt_tokens`: 输入 token 数
   - `completion_tokens`: 输出 token 数
   - `total_tokens`: 总 token 数
+- `attempts`: 实际尝试次数（1-3），如果第一次成功则为 1
 
 **错误响应**:
 ```json
@@ -986,8 +991,18 @@ POST /api/admin/llm/proxy
 
 **错误码**:
 - `400`: 请求参数错误或 API Key 未配置
-- `502`: LLM API 调用失败
-- `504`: LLM API 请求超时
+- `429`: API 速率限制（已重试 3 次仍失败）
+- `500`: 服务器内部错误（已重试 3 次仍失败）
+- `502`: LLM API 调用失败（已重试 3 次仍失败）
+- `504`: LLM API 请求超时（已重试 3 次仍失败）
+
+**重试机制**:
+- **触发条件**: 429 速率限制、5xx 服务器错误、超时、网络错误
+- **不重试条件**: 4xx 客户端错误（除 429 外）
+- **重试次数**: 最多 3 次
+- **重试延迟**: 指数退避（1秒、2秒、4秒）
+- **单次超时**: 60 秒
+- **总超时**: 最多 180 秒（60s × 3）
 
 **使用场景**:
 - 前端智能体模拟器调用 LLM API
