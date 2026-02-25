@@ -1742,7 +1742,8 @@
                     const data = await response.json();
 
                     const services = Object.entries(data.services).map(([name, info]) => {
-                        const badgeClass = info.status === 'healthy' ? 'badge-success' : 'badge-danger';
+                        const badgeClass = info.status === 'healthy' ? 'badge-success' : 
+                                          info.status === 'warning' ? 'badge-warning' : 'badge-danger';
                         return `
                             <tr>
                                 <td><strong>${name}</strong></td>
@@ -1752,13 +1753,63 @@
                         `;
                     }).join('');
 
-                    const statusBadge = data.status === 'ok' ? 'badge-success' : 'badge-warning';
+                    const statusBadge = data.status === 'ok' ? 'badge-success' : 
+                                       data.status === 'degraded' ? 'badge-warning' : 'badge-danger';
+
+                    // System resources display
+                    let systemResourcesHtml = '';
+                    if (data.system && Object.keys(data.system).length > 0) {
+                        const getResourceBadge = (usage) => {
+                            const percent = parseFloat(usage);
+                            if (percent > 90) return 'badge-danger';
+                            if (percent > 75) return 'badge-warning';
+                            return 'badge-success';
+                        };
+
+                        systemResourcesHtml = `
+                            <div style="margin-top: 30px;">
+                                <h3 style="margin-bottom: 15px; color: #2c3e50;">📊 系统资源</h3>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                                    ${data.system.cpu_usage ? `
+                                        <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                                            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 5px;">CPU 使用率</div>
+                                            <div style="font-size: 24px; font-weight: 700;">
+                                                <span class="badge ${getResourceBadge(data.system.cpu_usage)}">${data.system.cpu_usage}</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                    ${data.system.memory_usage ? `
+                                        <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                                            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 5px;">内存使用率</div>
+                                            <div style="font-size: 24px; font-weight: 700;">
+                                                <span class="badge ${getResourceBadge(data.system.memory_usage)}">${data.system.memory_usage}</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                    ${data.system.disk_usage ? `
+                                        <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                                            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 5px;">磁盘使用率</div>
+                                            <div style="font-size: 24px; font-weight: 700;">
+                                                <span class="badge ${getResourceBadge(data.system.disk_usage)}">${data.system.disk_usage}</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${data.system.error ? `
+                                    <div style="margin-top: 10px; padding: 10px; background: #fed7d7; border-radius: 6px; color: #742a2a;">
+                                        ⚠️ 系统资源检查错误: ${data.system.error}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }
 
                     const html = `
                         <div style="margin-bottom: 20px;">
                             <strong>系统状态:</strong> <span class="badge ${statusBadge}">${data.status}</span><br>
                             <strong>检查时间:</strong> ${new Date(data.timestamp).toLocaleString('zh-CN')}
                         </div>
+                        <h3 style="margin-bottom: 15px; color: #2c3e50;">🔧 服务状态</h3>
                         <table class="table">
                             <thead>
                                 <tr>
@@ -1769,11 +1820,17 @@
                             </thead>
                             <tbody>${services}</tbody>
                         </table>
+                        ${systemResourcesHtml}
                     `;
 
                     document.getElementById('health-container').innerHTML = html;
                 } catch (error) {
                     console.error('加载失败:', error);
+                    document.getElementById('health-container').innerHTML = `
+                        <div style="color: #e53e3e; padding: 20px; text-align: center;">
+                            ❌ 加载健康检查失败: ${error.message}
+                        </div>
+                    `;
                 }
             },
 
@@ -2323,9 +2380,7 @@
                     // 构建prompt
                     let systemPrompt = agent.systemPrompt || `你是一个参与讨论的AI智能体，名字是"${agent.name}"。`;
                     
-                    const prompt = `${systemPrompt}
-
-当前话题：${topic}
+                    const userPrompt = `当前话题：${topic}
 ${description ? `话题描述：${description}` : ''}
 
 最近的对话历史：
@@ -2339,7 +2394,7 @@ ${conversationHistory || '（暂无对话历史）'}
 5. 控制在100-200字之间
 6. 不要重复之前说过的内容
 
-请直接输出回复内容，不要有任何前缀或解释：`;
+请直接输出回复内容，不要有任何前缀或解释。`;
 
                     // 通过后端代理调用 LLM API（避免 CORS 问题）
                     // 前端重试：后端代理已有重试，这里处理网络层失败
@@ -2357,7 +2412,8 @@ ${conversationHistory || '（暂无对话历史）'}
                                 body: JSON.stringify({
                                     provider: agent.mode,
                                     messages: [
-                                        { role: 'user', content: prompt }
+                                        { role: 'system', content: systemPrompt },
+                                        { role: 'user', content: userPrompt }
                                     ],
                                     temperature: 0.8,
                                     max_tokens: 500

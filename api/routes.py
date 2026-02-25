@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import Optional
 import time
+import subprocess
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -711,25 +712,30 @@ async def health_check(db: Session = Depends(get_db)):
     Checks:
     - Database connection
     - Redis connection
-    - LLM services (OpenClaw and DeepSeek)
+    - Celery Worker status
+    - LLM services configuration
+    - System resources
     
     Validates:
         Requirement 12.9
     """
     from services.llm_clients.openclaw_client import OpenClawClient
     from services.llm_clients.deepseek_client import DeepSeekClient
+    from services.system_config_service import SystemConfigService
     import redis
+    import psutil
+    import shutil
     from config.settings import settings
     
     health_status = {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "services": {}
+        "services": {},
+        "system": {}
     }
     
     # Check database connection
     try:
-        # Simple query to test database
         from sqlalchemy import text
         db.execute(text("SELECT 1"))
         health_status["services"]["database"] = {
@@ -758,41 +764,115 @@ async def health_check(db: Session = Depends(get_db)):
             "message": f"Redis connection failed: {str(e)}"
         }
     
-    # Check OpenClaw LLM service
+    # Check Celery Worker status
     try:
-        openclaw_client = OpenClawClient(
-            api_key=settings.openclaw_api_key,
-            api_url=settings.openclaw_api_url
-        )
-        # We don't actually call the API, just check if client can be initialized
-        health_status["services"]["openclaw"] = {
-            "status": "healthy",
-            "message": "OpenClaw client initialized"
-        }
+        # 尝试三种方法检测 Worker
+        worker_running = False
+        detection_method = "unknown"
+        
+        # 方法1: 尝试使用 systemctl（生产环境）
+        try:
+            result = subprocess.run(
+                ['systemctl', 'is-active', 'dual-agent-celery'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            if result.returncode == 0 and result.stdout.strip() == 'active':
+                worker_running = True
+                detection_method = "systemd"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # 方法2: 尝试使用 pgrep（如果 systemctl 不可用）
+        if not worker_running:
+            try:
+                pgrep_path = shutil.which('pgrep')
+                if pgrep_path:
+                    result = subprocess.run(
+                        [pgrep_path, '-f', 'celery.*worker'],
+                        capture_output=True,
+                        timeout=2
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        worker_running = True
+                        detection_method = "pgrep"
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+        
+        # 方法3: 使用 Celery inspect（最可靠但较慢）
+        if not worker_running:
+            try:
+                from celery_app import celery_app
+                inspect = celery_app.control.inspect(timeout=2.0)
+                active_workers = inspect.active()
+                if active_workers:
+                    worker_running = True
+                    detection_method = "celery_inspect"
+            except Exception:
+                pass
+        
+        if worker_running:
+            health_status["services"]["celery_worker"] = {
+                "status": "healthy",
+                "message": f"Celery worker is running (detected by {detection_method})"
+            }
+        else:
+            health_status["status"] = "degraded"
+            health_status["services"]["celery_worker"] = {
+                "status": "unhealthy",
+                "message": "Celery worker is not running"
+            }
     except Exception as e:
         health_status["status"] = "degraded"
-        health_status["services"]["openclaw"] = {
+        health_status["services"]["celery_worker"] = {
             "status": "unhealthy",
-            "message": f"OpenClaw client initialization failed: {str(e)}"
+            "message": f"Worker check failed: {str(e)}"
         }
     
-    # Check DeepSeek LLM service
+    # Check LLM configuration
     try:
-        deepseek_client = DeepSeekClient(
-            api_key=settings.deepseek_api_key,
-            api_url=settings.deepseek_api_url
-        )
-        # We don't actually call the API, just check if client can be initialized
-        health_status["services"]["deepseek"] = {
-            "status": "healthy",
-            "message": "DeepSeek client initialized"
-        }
+        config_service = SystemConfigService(db)
+        deepseek_key = config_service.get_config_value('deepseek_api_key', '')
+        minimax_key = config_service.get_config_value('minimax_api_key', '')
+        
+        llm_status = []
+        if deepseek_key:
+            llm_status.append("DeepSeek")
+        if minimax_key:
+            llm_status.append("MiniMax")
+        
+        if llm_status:
+            health_status["services"]["llm_config"] = {
+                "status": "healthy",
+                "message": f"Configured: {', '.join(llm_status)}"
+            }
+        else:
+            health_status["services"]["llm_config"] = {
+                "status": "warning",
+                "message": "No LLM API keys configured"
+            }
     except Exception as e:
-        health_status["status"] = "degraded"
-        health_status["services"]["deepseek"] = {
-            "status": "unhealthy",
-            "message": f"DeepSeek client initialization failed: {str(e)}"
+        health_status["services"]["llm_config"] = {
+            "status": "warning",
+            "message": f"Config check failed: {str(e)}"
         }
+    
+    # Check system resources
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        health_status["system"]["cpu_usage"] = f"{cpu_percent}%"
+        health_status["system"]["memory_usage"] = f"{memory.percent}%"
+        health_status["system"]["disk_usage"] = f"{disk.percent}%"
+        
+        # Warning if resources are high
+        if cpu_percent > 90 or memory.percent > 90 or disk.percent > 90:
+            health_status["status"] = "degraded"
+    except Exception as e:
+        health_status["system"]["error"] = str(e)
     
     return health_status
 @router.post("/agent/register", response_model=RegisterAgentResponse)

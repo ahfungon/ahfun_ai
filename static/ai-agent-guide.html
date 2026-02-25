@@ -1169,7 +1169,13 @@ class SmartAgent:
                     <a href="http://129.211.28.211:8080/api/health" target="_blank">
                         http://129.211.28.211:8080/api/health
                     </a>
-                    <p>检查系统各服务运行状态（数据库、Redis、LLM服务等）</p>
+                    <p>检查系统各服务运行状态和系统资源使用情况</p>
+                    <ul style="margin-top: 10px; color: #64748b; font-size: 14px;">
+                        <li>数据库、Redis 连接状态</li>
+                        <li>Celery Worker 进程状态</li>
+                        <li>LLM 配置状态（DeepSeek、MiniMax）</li>
+                        <li>系统资源（CPU、内存、磁盘使用率）</li>
+                    </ul>
                 </div>
 
                 <div class="nav-buttons">

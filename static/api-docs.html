@@ -1706,12 +1706,21 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
                     <span class="path">/api/health</span>
                 </div>
                 <h3>健康检查</h3>
-                <p>检查系统各服务的运行状态。此接口无需认证。</p>
+                <p>检查系统各服务的运行状态和系统资源使用情况。此接口无需认证。</p>
 
-                <h4>响应示例</h4>
+                <h4>检查项目</h4>
+                <ul>
+                    <li><strong>数据库连接</strong> - PostgreSQL 连接状态</li>
+                    <li><strong>Redis 连接</strong> - Redis 缓存服务状态</li>
+                    <li><strong>Celery Worker</strong> - 后台任务处理进程状态（三种检测方法：systemctl、pgrep、celery inspect）</li>
+                    <li><strong>LLM 配置</strong> - DeepSeek 和 MiniMax API Key 配置状态</li>
+                    <li><strong>系统资源</strong> - CPU、内存、磁盘使用率</li>
+                </ul>
+
+                <h4>响应示例（健康状态）</h4>
                 <div class="code-block">{
   "status": "ok",
-  "timestamp": "2026-02-14T10:00:00",
+  "timestamp": "2026-02-25T05:42:27.542505",
   "services": {
     "database": {
       "status": "healthy",
@@ -1721,16 +1730,84 @@ curl -H "X-Agent-Token: token-xxxxxxxxxxxxxxxxxxxxx" \
       "status": "healthy",
       "message": "Redis connection successful"
     },
-    "openclaw": {
+    "celery_worker": {
       "status": "healthy",
-      "message": "OpenClaw client initialized"
+      "message": "Celery worker is running (detected by pgrep)"
     },
-    "deepseek": {
+    "llm_config": {
       "status": "healthy",
-      "message": "DeepSeek client initialized"
+      "message": "Configured: DeepSeek, MiniMax"
     }
+  },
+  "system": {
+    "cpu_usage": "9.1%",
+    "memory_usage": "54.5%",
+    "disk_usage": "1.1%"
   }
 }</div>
+
+                <h4>响应示例（降级状态）</h4>
+                <div class="code-block">{
+  "status": "degraded",
+  "timestamp": "2026-02-25T05:47:52.844576",
+  "services": {
+    "database": {
+      "status": "healthy",
+      "message": "Database connection successful"
+    },
+    "redis": {
+      "status": "healthy",
+      "message": "Redis connection successful"
+    },
+    "celery_worker": {
+      "status": "unhealthy",
+      "message": "Celery worker is not running"
+    },
+    "llm_config": {
+      "status": "healthy",
+      "message": "Configured: DeepSeek, MiniMax"
+    }
+  },
+  "system": {
+    "cpu_usage": "0.0%",
+    "memory_usage": "49.2%",
+    "disk_usage": "35.5%"
+  }
+}</div>
+
+                <h4>状态说明</h4>
+                <ul>
+                    <li><code>ok</code> - 所有服务正常运行</li>
+                    <li><code>degraded</code> - 部分服务异常或系统资源使用率过高（>90%）</li>
+                    <li><code>unhealthy</code> - 关键服务不可用</li>
+                </ul>
+
+                <h4>服务状态</h4>
+                <ul>
+                    <li><code>healthy</code> - 服务正常</li>
+                    <li><code>warning</code> - 服务可用但有警告</li>
+                    <li><code>unhealthy</code> - 服务不可用</li>
+                </ul>
+
+                <div class="info-box">
+                    <strong>💡 使用场景：</strong>
+                    <ul>
+                        <li>监控系统整体运行状态</li>
+                        <li>检查 Worker 是否正常运行</li>
+                        <li>查看 LLM 配置状态</li>
+                        <li>监控系统资源使用情况</li>
+                        <li>集成到监控告警系统</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ 注意事项：</strong>
+                    <ul>
+                        <li>系统资源使用率超过 90% 时，整体状态会变为 degraded</li>
+                        <li>Worker 检测有 2 秒超时限制</li>
+                        <li>建议定期调用此接口进行健康检查</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="endpoint">
