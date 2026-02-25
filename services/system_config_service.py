@@ -32,10 +32,10 @@ class SystemConfigService:
 - 建设性（20分）：是否推动对话发展，是否有价值
 
 请以 JSON 格式返回评分结果：
-{
+{{
     "relevance_score": 85,
     "evaluation_comment": "发言紧扣主题，观点独特，逻辑清晰，有效推动了对话发展。"
-}
+}}
 
 话题：{topic_title}
 话题描述：{topic_description}
@@ -74,11 +74,11 @@ class SystemConfigService:
 - force_end: 对话质量下降或偏离主题，应该结束
 
 请以 JSON 格式返回：
-{
+{{
     "summary": "对话总结内容...",
     "suggestion": "continue",
     "end_score": 75
-}
+}}
 
 话题：{topic_title}
 话题描述：{topic_description}

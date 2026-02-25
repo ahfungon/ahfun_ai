@@ -261,7 +261,7 @@ class MiniMaxClient(BaseLLMClient):
         self,
         prompt: str,
         temperature: float = 0.3,
-        max_tokens: Optional[int] = 500
+        max_tokens: Optional[int] = 1500
     ) -> Optional[Dict[str, Any]]:
         """
         Evaluate message relevance using MiniMax API.
@@ -272,7 +272,7 @@ class MiniMaxClient(BaseLLMClient):
         Args:
             prompt: Evaluation prompt
             temperature: Sampling temperature (default: 0.3)
-            max_tokens: Maximum tokens to generate (default: 500)
+            max_tokens: Maximum tokens to generate (default: 1500, increased to handle <think> tags)
         
         Returns:
             Dictionary containing:
