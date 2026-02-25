@@ -51,12 +51,12 @@ class Settings(BaseSettings):
         description="MiniMax API key for summary generation"
     )
     minimax_api_url: str = Field(
-        default="https://api.minimax.chat/v1",
-        description="MiniMax API endpoint"
+        default="https://api.minimax.io/v1",
+        description="MiniMax API endpoint (OpenAI compatible)"
     )
     minimax_model: str = Field(
-        default="abab6.5-chat",
-        description="MiniMax model name"
+        default="MiniMax-M2.5",
+        description="MiniMax model name (e.g., MiniMax-M2.5, MiniMax-M2.5-highspeed)"
     )
     
     # Summary Configuration

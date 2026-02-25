@@ -1792,17 +1792,8 @@ ${conversationHistory || '（暂无对话历史）'}
 
 请直接输出回复内容，不要有任何前缀或解释：`;
 
-                    // 调用 LLM API
-                    let apiEndpoint;
-                    if (agent.mode === 'minimax') {
-                        // MiniMax 使用不同的端点
-                        apiEndpoint = llmConfig.api_url + '/text/chatcompletion_v2';
-                    } else {
-                        // DeepSeek 使用标准的 OpenAI 兼容端点
-                        apiEndpoint = llmConfig.api_url + '/chat/completions';
-                    }
-
-                    const response = await fetch(apiEndpoint, {
+                    // 调用 LLM API（MiniMax 和 DeepSeek 都使用 OpenAI 兼容格式）
+                    const response = await fetch(llmConfig.api_url + '/chat/completions', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

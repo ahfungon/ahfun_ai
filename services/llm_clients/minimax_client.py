@@ -25,7 +25,7 @@ class MiniMaxClient(BaseLLMClient):
         timeout: int = 30,
         max_retries: int = 3,
         retry_delays: list[int] = None,
-        model: str = "abab6.5-chat"
+        model: str = "MiniMax-M2.5"
     ):
         """
         Initialize MiniMax client.
@@ -36,7 +36,7 @@ class MiniMaxClient(BaseLLMClient):
             timeout: Request timeout in seconds (default: 30)
             max_retries: Maximum retry attempts (default: 3)
             retry_delays: Retry delay intervals (default: [1, 2, 4])
-            model: Model name to use (default: "abab6.5-chat")
+            model: Model name to use (default: "MiniMax-M2.5")
         """
         super().__init__(api_key, api_url, timeout, max_retries, retry_delays)
         self.model = model
@@ -155,7 +155,7 @@ class MiniMaxClient(BaseLLMClient):
         
         try:
             response = requests.post(
-                f"{self.api_url}/text/chatcompletion_v2",
+                f"{self.api_url}/chat/completions",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -270,7 +270,7 @@ class MiniMaxClient(BaseLLMClient):
         
         try:
             response = requests.post(
-                f"{self.api_url}/text/chatcompletion_v2",
+                f"{self.api_url}/chat/completions",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout

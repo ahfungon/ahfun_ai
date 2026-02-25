@@ -165,22 +165,22 @@ class SystemConfigService:
         },
         {
             "key": "minimax_api_url",
-            "value": "https://api.minimax.chat/v1",
+            "value": "https://api.minimax.io/v1",
             "config_type": "text",
             "category": "llm",
             "display_name": "MiniMax API URL",
-            "description": "MiniMax API 端点地址",
-            "default_value": "https://api.minimax.chat/v1",
+            "description": "MiniMax API 端点地址（OpenAI 兼容格式）",
+            "default_value": "https://api.minimax.io/v1",
             "display_order": 41
         },
         {
             "key": "minimax_model",
-            "value": "abab6.5-chat",
+            "value": "MiniMax-M2.5",
             "config_type": "text",
             "category": "llm",
             "display_name": "MiniMax 模型",
-            "description": "MiniMax 模型名称",
-            "default_value": "abab6.5-chat",
+            "description": "MiniMax 模型名称（如 MiniMax-M2.5, MiniMax-M2.5-highspeed）",
+            "default_value": "MiniMax-M2.5",
             "display_order": 42
         }
     ]

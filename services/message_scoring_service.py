@@ -34,8 +34,8 @@ class MessageScoringService:
         if provider == 'minimax':
             # Initialize MiniMax client
             api_key = self.config_service.get_config_value('minimax_api_key', '')
-            api_url = self.config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
-            model = self.config_service.get_config_value('minimax_model', 'abab6.5-chat')
+            api_url = self.config_service.get_config_value('minimax_api_url', 'https://api.minimax.io/v1')
+            model = self.config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
             
             self.llm_client = MiniMaxClient(
                 api_key=api_key,
