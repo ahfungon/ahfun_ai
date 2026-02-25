@@ -430,6 +430,7 @@
         <div class="nav-item" onclick="admin.showSection('simulator')">🧪 智能体模拟器</div>
         <div class="nav-item" onclick="admin.showSection('config')">⚙️ 系统配置</div>
         <div class="nav-item" onclick="admin.showSection('scoring')">📈 评分监控</div>
+        <div class="nav-item" onclick="admin.showSection('summary')">📋 总结监控</div>
         <div class="nav-item" onclick="admin.showSection('health')">🏥 系统健康</div>
     </div>
 
@@ -633,6 +634,22 @@
             </div>
         </div>
 
+        <!-- Summary Monitor Section -->
+        <div id="summary-section" class="hidden">
+            <div class="panel">
+                <div class="panel-header">
+                    📋 总结系统监控
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="admin.loadSummaryStats()">刷新</button>
+                        <button class="btn btn-sm" style="background:#10b981;color:#fff;" onclick="admin.testSummaryApi()">测试API</button>
+                    </div>
+                </div>
+                <div id="summary-content">
+                    <p style="color:#94a3b8;text-align:center;padding:40px;">点击"刷新"加载总结数据</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Health Section -->
         <div id="health-section" class="hidden">
             <div class="panel">
@@ -742,7 +759,7 @@
                 event.target.classList.add('active');
 
                 // Hide all sections
-                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'scoring', 'health'].forEach(s => {
+                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'scoring', 'summary', 'health'].forEach(s => {
                     const sectionEl = document.getElementById(`${s}-section`);
                     if (sectionEl) {
                         sectionEl.classList.add('hidden');
@@ -769,6 +786,8 @@
                     this.loadHealth();
                 } else if (section === 'scoring') {
                     this.loadScoringStats();
+                } else if (section === 'summary') {
+                    this.loadSummaryStats();
                 }
             },
 
@@ -1438,6 +1457,195 @@
                     const d = await resp.json();
                     alert(d.message);
                     setTimeout(() => this.loadScoringStats(), 3000);
+                } catch (e) {
+                    alert('操作失败: ' + e.message);
+                }
+            },
+
+            // ===== Summary Monitor =====
+            async loadSummaryStats() {
+                const container = document.getElementById('summary-content');
+                container.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:20px;">加载中...</p>';
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/summary/stats`);
+                    const d = await resp.json();
+                    const workerColor = d.worker_online ? '#10b981' : '#ef4444';
+                    const workerText = d.worker_online ? '在线' : '离线';
+                    const queueColor = d.summary_queue_length > 0 ? '#f59e0b' : '#10b981';
+                    const keyStatus = d.config.api_key_configured
+                        ? `<span style="color:#10b981;">✅ ${d.config.api_key_preview}</span>`
+                        : `<span style="color:#ef4444;">❌ 未配置</span>`;
+
+                    let html = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:#3b82f6;">${d.total_summaries}</div>
+                            <div style="font-size:12px;color:#64748b;">总总结数</div>
+                            <div style="font-size:11px;color:#94a3b8;">${d.total_topics} 个话题</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:#10b981;">${d.recent_24h_summaries}</div>
+                            <div style="font-size:12px;color:#64748b;">近24小时总结</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:#f59e0b;">${d.topics_over_threshold}</div>
+                            <div style="font-size:12px;color:#64748b;">需要总结</div>
+                            <div style="font-size:11px;color:#94a3b8;">阈值: ${d.threshold}</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:${queueColor};">${d.summary_queue_length}</div>
+                            <div style="font-size:12px;color:#64748b;">队列任务</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:24px;font-weight:700;color:#10b981;">${d.job_stats.done}</div>
+                            <div style="font-size:12px;color:#64748b;">已完成</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:24px;font-weight:700;color:#f59e0b;">${d.job_stats.pending}</div>
+                            <div style="font-size:12px;color:#64748b;">待处理</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:24px;font-weight:700;color:#3b82f6;">${d.job_stats.processing}</div>
+                            <div style="font-size:12px;color:#64748b;">处理中</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:24px;font-weight:700;color:#ef4444;">${d.job_stats.failed}</div>
+                            <div style="font-size:12px;color:#64748b;">失败</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;border:1px solid #e2e8f0;">
+                            <div style="font-weight:600;margin-bottom:8px;">🔧 总结配置</div>
+                            <div style="font-size:13px;color:#475569;">
+                                <div>提供商：<strong>${d.config.provider.toUpperCase()}</strong></div>
+                                <div>模型：<strong>${d.config.model}</strong></div>
+                                <div>API Key：${keyStatus}</div>
+                            </div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;border:1px solid #e2e8f0;">
+                            <div style="font-weight:600;margin-bottom:8px;">⚙️ 系统状态</div>
+                            <div style="font-size:13px;color:#475569;">
+                                <div>Celery Worker：<span style="color:${workerColor};font-weight:600;">${workerText}</span></div>
+                                <div id="summary-test-result" style="margin-top:4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-weight:600;margin-bottom:10px;">最近 20 个话题状态</div>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f1f5f9;text-align:left;">
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">话题</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">状态</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">Token</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">待处理</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">建议</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">评分</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    for (const t of d.topics) {
+                        const statusBadge = t.status === 'active'
+                            ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;">活跃</span>'
+                            : '<span style="background:#f1f5f9;color:#64748b;padding:2px 8px;border-radius:10px;font-size:11px;">' + t.status + '</span>';
+                        const needsBadge = t.needs_summary
+                            ? '<span style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;">需要总结</span>'
+                            : t.pending_job
+                            ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;">处理中</span>'
+                            : '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;">正常</span>';
+                        const tokenColor = t.token_count >= d.threshold ? '#ef4444' : '#64748b';
+                        const triggerBtn = t.status === 'active' && !t.pending_job
+                            ? `<button class="btn btn-sm" style="background:#3b82f6;color:#fff;padding:4px 8px;font-size:11px;" onclick="admin.triggerSummary('${t.topic_id}')">触发总结</button>`
+                            : '-';
+
+                        html += `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px 10px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</td>
+                                <td style="padding:8px 10px;text-align:center;">${statusBadge}</td>
+                                <td style="padding:8px 10px;text-align:center;font-weight:600;color:${tokenColor};">${t.token_count}</td>
+                                <td style="padding:8px 10px;text-align:center;">${needsBadge}</td>
+                                <td style="padding:8px 10px;color:#64748b;">${t.suggestion || '-'}</td>
+                                <td style="padding:8px 10px;text-align:center;font-weight:600;color:#3b82f6;">${t.end_score ?? '-'}</td>
+                                <td style="padding:8px 10px;text-align:center;">${triggerBtn}</td>
+                            </tr>`;
+                    }
+
+                    html += '</tbody></table></div>';
+
+                    html += `
+                    <div style="font-weight:600;margin:20px 0 10px;">最近 10 个总结任务</div>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f1f5f9;text-align:left;">
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">话题</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">状态</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">重试</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">错误</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">创建时间</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">耗时</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    for (const j of d.recent_jobs) {
+                        const statusColor = j.status === 'done' ? '#10b981' : j.status === 'failed' ? '#ef4444' : j.status === 'processing' ? '#3b82f6' : '#f59e0b';
+                        const statusBadge = `<span style="background:${statusColor}20;color:${statusColor};padding:2px 8px;border-radius:10px;font-size:11px;">${j.status}</span>`;
+                        const time = j.created_at ? new Date(j.created_at).toLocaleString('zh-CN') : '-';
+                        const durationText = j.duration_seconds !== null ? `${j.duration_seconds}s` : '-';
+
+                        html += `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px 10px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.topic_title}</td>
+                                <td style="padding:8px 10px;text-align:center;">${statusBadge}</td>
+                                <td style="padding:8px 10px;text-align:center;color:#64748b;">${j.retry_count}</td>
+                                <td style="padding:8px 10px;color:#ef4444;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${j.error || '-'}</td>
+                                <td style="padding:8px 10px;color:#64748b;white-space:nowrap;">${time}</td>
+                                <td style="padding:8px 10px;text-align:center;color:#64748b;">${durationText}</td>
+                            </tr>`;
+                    }
+
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } catch (e) {
+                    container.innerHTML = `<p style="color:#ef4444;padding:20px;">加载失败: ${e.message}</p>`;
+                }
+            },
+
+            async testSummaryApi() {
+                const el = document.getElementById('summary-test-result');
+                if (el) el.innerHTML = '<span style="color:#94a3b8;">测试中...</span>';
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/summary/test`, { method: 'POST' });
+                    const d = await resp.json();
+                    if (d.success) {
+                        if (el) el.innerHTML = `<span style="color:#10b981;">✅ API正常 (${d.duration_ms}ms)</span>`;
+                    } else {
+                        if (el) el.innerHTML = `<span style="color:#ef4444;">❌ ${d.error}</span>`;
+                    }
+                } catch (e) {
+                    if (el) el.innerHTML = `<span style="color:#ef4444;">❌ ${e.message}</span>`;
+                }
+            },
+
+            async triggerSummary(topicId) {
+                if (!confirm('确定要手动触发总结吗？')) return;
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/summary/trigger/${topicId}`, { method: 'POST' });
+                    const d = await resp.json();
+                    if (d.success) {
+                        alert(d.message);
+                        setTimeout(() => this.loadSummaryStats(), 2000);
+                    } else {
+                        alert('触发失败: ' + (d.detail || '未知错误'));
+                    }
                 } catch (e) {
                     alert('操作失败: ' + e.message);
                 }

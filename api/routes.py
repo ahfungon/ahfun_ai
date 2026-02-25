@@ -2257,3 +2257,263 @@ async def test_scoring_api(db: Session = Depends(get_db)):
     except Exception as e:
         duration = round((_time.time() - start) * 1000)
         return {"success": False, "error": str(e), "duration_ms": duration}
+
+
+# ============================================================================
+# Summary Monitoring Endpoints
+# ============================================================================
+
+@router.get("/admin/summary/stats")
+async def get_summary_stats(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Get summary system statistics and diagnostics.
+    Returns overall stats, recent summary activity, and system health info.
+    """
+    from models.models import SummaryJob, SummaryHistory
+    from services.system_config_service import SystemConfigService
+    from sqlalchemy import func, desc, and_
+    from datetime import timedelta
+
+    config_service = SystemConfigService(db)
+    now = datetime.utcnow()
+
+    # 1. Overall stats
+    total_topics = db.query(func.count(Topic.id)).scalar() or 0
+    total_summaries = db.query(func.count(SummaryHistory.id)).scalar() or 0
+    total_jobs = db.query(func.count(SummaryJob.id)).scalar() or 0
+
+    # 2. Job status breakdown
+    pending_jobs = db.query(func.count(SummaryJob.id)).filter(
+        SummaryJob.status == 'pending'
+    ).scalar() or 0
+    processing_jobs = db.query(func.count(SummaryJob.id)).filter(
+        SummaryJob.status == 'processing'
+    ).scalar() or 0
+    done_jobs = db.query(func.count(SummaryJob.id)).filter(
+        SummaryJob.status == 'done'
+    ).scalar() or 0
+    failed_jobs = db.query(func.count(SummaryJob.id)).filter(
+        SummaryJob.status == 'failed'
+    ).scalar() or 0
+
+    # 3. Recent activity (last 24 hours)
+    one_day_ago = now - timedelta(hours=24)
+    recent_summaries = db.query(func.count(SummaryHistory.id)).filter(
+        SummaryHistory.created_at >= one_day_ago
+    ).scalar() or 0
+
+    # 4. Topics needing summary
+    threshold = config_service.get_config_value('summary_threshold', 8000)
+    topics_over_threshold = db.query(func.count(Topic.id)).filter(
+        and_(
+            Topic.status == 'active',
+            Topic.token_count_since_summary >= threshold,
+            Topic.pending_summary_job == False
+        )
+    ).scalar() or 0
+
+    # 5. Recent 20 topics with summary status
+    recent_topics = db.query(
+        Topic.id,
+        Topic.title,
+        Topic.status,
+        Topic.token_count_since_summary,
+        Topic.pending_summary_job,
+        Topic.llm_suggestion,
+        Topic.end_score,
+        Topic.updated_at
+    ).order_by(desc(Topic.updated_at)).limit(20).all()
+
+    topics_list = []
+    for t in recent_topics:
+        needs_summary = t.token_count_since_summary >= threshold and not t.pending_summary_job
+        topics_list.append({
+            "topic_id": t.id,
+            "title": t.title[:50] + "..." if len(t.title) > 50 else t.title,
+            "status": t.status,
+            "token_count": t.token_count_since_summary,
+            "pending_job": t.pending_summary_job,
+            "needs_summary": needs_summary,
+            "suggestion": t.llm_suggestion,
+            "end_score": t.end_score,
+            "updated_at": t.updated_at.isoformat() + "Z" if t.updated_at else None
+        })
+
+    # 6. Recent 10 summary jobs
+    recent_jobs = db.query(
+        SummaryJob.id,
+        SummaryJob.topic_id,
+        SummaryJob.status,
+        SummaryJob.retry_count,
+        SummaryJob.error_message,
+        SummaryJob.created_at,
+        SummaryJob.updated_at,
+        Topic.title
+    ).join(Topic, SummaryJob.topic_id == Topic.id).order_by(
+        desc(SummaryJob.created_at)
+    ).limit(10).all()
+
+    jobs_list = []
+    for j in recent_jobs:
+        duration = None
+        if j.status == 'done' and j.updated_at and j.created_at:
+            duration = round((j.updated_at - j.created_at).total_seconds(), 1)
+        jobs_list.append({
+            "job_id": j.id,
+            "topic_id": j.topic_id,
+            "topic_title": j.title[:40] + "..." if len(j.title) > 40 else j.title,
+            "status": j.status,
+            "retry_count": j.retry_count,
+            "error": j.error_message[:80] + "..." if j.error_message and len(j.error_message) > 80 else j.error_message,
+            "created_at": j.created_at.isoformat() + "Z" if j.created_at else None,
+            "duration_seconds": duration
+        })
+
+    # 7. Summary config
+    provider = config_service.get_config_value('llm_provider_summary', 'deepseek')
+    if provider == 'minimax':
+        api_key = config_service.get_config_value('minimax_api_key', '')
+        model = config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
+    else:
+        api_key = config_service.get_config_value('deepseek_api_key', '')
+        model = config_service.get_config_value('deepseek_model', 'deepseek-chat')
+
+    # 8. Celery worker status
+    worker_online = False
+    summary_queue_length = 0
+    try:
+        from workers.celery_app import celery_app
+        import redis
+        from config.settings import settings
+        
+        inspector = celery_app.control.inspect(timeout=2)
+        active = inspector.active()
+        worker_online = bool(active)
+        
+        # Check summary_jobs queue length
+        r = redis.from_url(settings.redis_url)
+        summary_queue_length = r.llen('summary_jobs')
+    except Exception:
+        pass
+
+    return {
+        "total_topics": total_topics,
+        "total_summaries": total_summaries,
+        "total_jobs": total_jobs,
+        "job_stats": {
+            "pending": pending_jobs,
+            "processing": processing_jobs,
+            "done": done_jobs,
+            "failed": failed_jobs
+        },
+        "recent_24h_summaries": recent_summaries,
+        "topics_over_threshold": topics_over_threshold,
+        "threshold": threshold,
+        "config": {
+            "provider": provider,
+            "model": model,
+            "api_key_configured": bool(api_key),
+            "api_key_preview": api_key[:8] + "..." if api_key else ""
+        },
+        "worker_online": worker_online,
+        "summary_queue_length": summary_queue_length,
+        "topics": topics_list,
+        "recent_jobs": jobs_list
+    }
+
+
+@router.post("/admin/summary/trigger/{topic_id}")
+async def trigger_summary(topic_id: str, db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Manually trigger a summary for a specific topic.
+    Creates a summary job even if threshold hasn't been reached.
+    """
+    from services.queue_service import QueueService
+    
+    # Get topic
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="话题不存在")
+    
+    if topic.status != 'active':
+        raise HTTPException(status_code=400, detail="只能为活跃话题生成总结")
+    
+    if topic.pending_summary_job:
+        raise HTTPException(status_code=400, detail="该话题已有待处理的总结任务")
+    
+    # Get latest message
+    latest_message = db.query(Message).filter(
+        Message.topic_id == topic_id
+    ).order_by(desc(Message.created_at)).first()
+    
+    if not latest_message:
+        raise HTTPException(status_code=400, detail="话题没有消息")
+    
+    # Create summary job
+    queue_service = QueueService(db)
+    job_id = queue_service.enqueue_summary_job(
+        topic_id=topic_id,
+        start_message_id=topic.last_summarized_message_id,
+        end_message_id=latest_message.id
+    )
+    
+    return {
+        "success": True,
+        "job_id": job_id,
+        "message": f"已为话题「{topic.title}」创建总结任务"
+    }
+
+
+@router.post("/admin/summary/test")
+async def test_summary_api(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Test the summary LLM API connectivity.
+    Makes a simple test call to verify the configured provider works.
+    """
+    from services.system_config_service import SystemConfigService
+    from services.llm_clients import MiniMaxClient, DeepSeekClient
+    import time as _time
+
+    config_service = SystemConfigService(db)
+    provider = config_service.get_config_value('llm_provider_summary', 'deepseek')
+
+    test_prompt = """请对以下对话进行总结。返回JSON格式（只返回JSON）：
+{"summary": "测试总结内容", "suggestion": "continue", "end_score": 75}
+
+话题：测试话题
+对话内容：这是一段测试对话。"""
+
+    start = _time.time()
+    try:
+        if provider == 'minimax':
+            api_key = config_service.get_config_value('minimax_api_key', '')
+            api_url = config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
+            model = config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
+            client = MiniMaxClient(api_key=api_key, api_url=api_url, model=model, max_retries=1)
+            result = client.generate_summary(test_prompt)
+        else:
+            api_key = config_service.get_config_value('deepseek_api_key', '')
+            api_url = config_service.get_config_value('deepseek_api_url', 'https://api.deepseek.com/v1')
+            model = config_service.get_config_value('deepseek_model', 'deepseek-chat')
+            client = DeepSeekClient(api_key=api_key, api_url=api_url, model=model, max_retries=1)
+            result = client.generate_summary(test_prompt)
+
+        if not api_key:
+            return {"success": False, "error": f"{provider} API Key 未配置", "duration_ms": 0}
+
+        duration = round((_time.time() - start) * 1000)
+
+        if result:
+            return {
+                "success": True,
+                "provider": provider,
+                "model": model,
+                "result": result,
+                "duration_ms": duration
+            }
+        else:
+            return {"success": False, "error": "API 返回空结果", "duration_ms": duration}
+
+    except Exception as e:
+        duration = round((_time.time() - start) * 1000)
+        return {"success": False, "error": str(e), "duration_ms": duration}
