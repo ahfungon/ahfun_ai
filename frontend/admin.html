@@ -1868,8 +1868,8 @@
                 errorCount: 0
             },
 
-            init() {
-                this.loadAgents();
+            async init() {
+                await this.loadAgents();
                 this.loadApiKey();
                 this.renderAgentList();
                 this.updateStats();
@@ -1971,10 +1971,42 @@
             // 移除这两个方法，不再需要手动保存和清除
             // saveApiKeyFromModal() 和 clearApiKey() 已废弃
 
-            loadAgents() {
+            async loadAgents() {
+                // 从 localStorage 加载运行时数据
                 const saved = localStorage.getItem('simulator_agents');
                 if (saved) {
                     this.agents = JSON.parse(saved);
+                }
+                
+                // 从数据库加载系统提示词（同步配置）
+                try {
+                    const response = await fetch('/api/admin/agents');
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // 合并数据库中的系统提示词到本地智能体
+                        this.agents = this.agents.map(localAgent => {
+                            const dbAgent = data.agents.find(a => a.agent_id === localAgent.id);
+                            if (dbAgent) {
+                                // 从数据库同步系统提示词
+                                if (dbAgent.system_prompt) {
+                                    localAgent.systemPrompt = dbAgent.system_prompt;
+                                }
+                                // 同步名称（如果在数据库中被修改）
+                                if (dbAgent.agent_name !== localAgent.name) {
+                                    localAgent.name = dbAgent.agent_name;
+                                }
+                            }
+                            return localAgent;
+                        });
+                        
+                        // 保存更新后的数据
+                        this.saveAgents();
+                        this.log('✅ 已从数据库同步智能体配置', 'success');
+                    }
+                } catch (error) {
+                    console.error('从数据库加载智能体配置失败:', error);
+                    this.log('⚠️ 无法从数据库同步配置，使用本地数据', 'warning');
                 }
             },
 

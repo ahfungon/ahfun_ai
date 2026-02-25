@@ -765,15 +765,15 @@ async def health_check(db: Session = Depends(get_db)):
         }
     
     # Check Celery Worker status
+    worker_running = False
+    detection_method = "unknown"
+    detection_error = None
+    
     try:
-        # 尝试三种方法检测 Worker
-        worker_running = False
-        detection_method = "unknown"
-        
         # 方法1: 尝试使用 systemctl（生产环境）
         try:
             result = subprocess.run(
-                ['systemctl', 'is-active', 'dual-agent-celery'],
+                ['/usr/bin/systemctl', 'is-active', 'dual-agent-celery'],
                 capture_output=True,
                 text=True,
                 timeout=2
@@ -781,8 +781,10 @@ async def health_check(db: Session = Depends(get_db)):
             if result.returncode == 0 and result.stdout.strip() == 'active':
                 worker_running = True
                 detection_method = "systemd"
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            detection_error = f"systemctl failed: {str(e)}"
+        except Exception as e:
+            detection_error = f"systemctl unexpected error: {str(e)}"
         
         # 方法2: 尝试使用 pgrep（如果 systemctl 不可用）
         if not worker_running:
@@ -794,11 +796,20 @@ async def health_check(db: Session = Depends(get_db)):
                         capture_output=True,
                         timeout=2
                     )
-                    if result.returncode == 0 and result.stdout.strip():
+                    # pgrep 返回 bytes，需要检查长度或解码
+                    if result.returncode == 0 and len(result.stdout) > 0:
                         worker_running = True
                         detection_method = "pgrep"
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                if detection_error:
+                    detection_error += f"; pgrep failed: {str(e)}"
+                else:
+                    detection_error = f"pgrep failed: {str(e)}"
+            except Exception as e:
+                if detection_error:
+                    detection_error += f"; pgrep unexpected error: {str(e)}"
+                else:
+                    detection_error = f"pgrep unexpected error: {str(e)}"
         
         # 方法3: 使用 Celery inspect（最可靠但较慢）
         if not worker_running:
@@ -809,8 +820,11 @@ async def health_check(db: Session = Depends(get_db)):
                 if active_workers:
                     worker_running = True
                     detection_method = "celery_inspect"
-            except Exception:
-                pass
+            except Exception as e:
+                if detection_error:
+                    detection_error += f"; celery inspect failed: {str(e)}"
+                else:
+                    detection_error = f"celery inspect failed: {str(e)}"
         
         if worker_running:
             health_status["services"]["celery_worker"] = {
@@ -819,9 +833,12 @@ async def health_check(db: Session = Depends(get_db)):
             }
         else:
             health_status["status"] = "degraded"
+            error_msg = "Celery worker is not running"
+            if detection_error:
+                error_msg += f" (detection errors: {detection_error})"
             health_status["services"]["celery_worker"] = {
                 "status": "unhealthy",
-                "message": "Celery worker is not running"
+                "message": error_msg
             }
     except Exception as e:
         health_status["status"] = "degraded"
