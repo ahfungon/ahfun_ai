@@ -56,6 +56,7 @@ class RequestCloseResponse(BaseModel):
 class RegisterAgentRequest(BaseModel):
     """Request model for agent registration."""
     agent_name: str = Field(..., description="Display name for the agent", min_length=1, max_length=100)
+    system_prompt: Optional[str] = Field(None, description="System prompt for agent personality and speaking style")
 
 
 class RegisterAgentResponse(BaseModel):
@@ -825,7 +826,8 @@ async def register_agent(
     agent = Agent(
         id=agent_id,
         name=request.agent_name,
-        auth_token_hash=hash_token(auth_token)
+        auth_token_hash=hash_token(auth_token),
+        system_prompt=request.system_prompt
     )
 
     try:
@@ -854,6 +856,7 @@ class AgentInfo(BaseModel):
     agent_id: str
     agent_name: str
     auth_token_hash: str
+    system_prompt: Optional[str] = None
     created_at: str
     message_count: int
 
@@ -905,6 +908,7 @@ async def admin_list_agents(db: Session = Depends(get_db)):
             agent_id=agent.id,
             agent_name=agent.name,
             auth_token_hash=agent.auth_token_hash,
+            system_prompt=agent.system_prompt,
             created_at=agent.created_at.isoformat() + 'Z' if agent.created_at else "",
             message_count=message_count or 0
         )
@@ -915,6 +919,67 @@ async def admin_list_agents(db: Session = Depends(get_db)):
         agents=agents_list,
         total=len(agents_list)
     )
+
+
+class UpdateAgentRequest(BaseModel):
+    """Request model for updating agent."""
+    agent_name: Optional[str] = Field(None, description="Display name for the agent", min_length=1, max_length=100)
+    system_prompt: Optional[str] = Field(None, description="System prompt for agent personality and speaking style")
+
+
+@router.put("/admin/agents/{agent_id}")
+async def admin_update_agent(
+    agent_id: str,
+    request: UpdateAgentRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Update agent information.
+    
+    Args:
+        agent_id: Agent ID to update
+        request: Update request with optional name and system_prompt
+        
+    Returns:
+        Updated agent information
+    """
+    # Find agent
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent {agent_id} not found"
+        )
+    
+    # Update fields if provided
+    if request.agent_name is not None:
+        agent.name = request.agent_name
+    
+    if request.system_prompt is not None:
+        agent.system_prompt = request.system_prompt
+    
+    try:
+        db.commit()
+        db.refresh(agent)
+        
+        return {
+            "success": True,
+            "message": "Agent updated successfully",
+            "agent": {
+                "agent_id": agent.id,
+                "agent_name": agent.name,
+                "system_prompt": agent.system_prompt,
+                "created_at": agent.created_at.isoformat() + 'Z' if agent.created_at else ""
+            }
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update agent: {str(e)}"
+        )
 
 
 @router.get("/admin/topics", response_model=TopicsListResponse)

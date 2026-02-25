@@ -435,12 +435,42 @@
                 <input type="text" id="agentNameInput" class="form-input" placeholder="例如：Agent-Alice">
             </div>
             <div class="form-group">
+                <label class="form-label">系统提示词（可选）</label>
+                <textarea id="agentSystemPromptInput" class="form-input" rows="4" placeholder="例如：你是一个友好、幽默的AI助手，喜欢用表情符号..."></textarea>
+                <small style="color: var(--text-muted); font-size: 12px;">配置智能体的人设与发言风格</small>
+            </div>
+            <div class="form-group">
                 <label class="form-label">发言间隔（秒）</label>
                 <input type="number" id="agentIntervalInput" class="form-input" value="30" min="10" max="300">
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="app.hideAddAgentModal()">取消</button>
                 <button class="btn btn-primary" onclick="app.addAgent()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑智能体模态框 -->
+    <div id="editAgentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">编辑智能体</div>
+            <input type="hidden" id="editAgentId">
+            <div class="form-group">
+                <label class="form-label">智能体名称</label>
+                <input type="text" id="editAgentNameInput" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">系统提示词（可选）</label>
+                <textarea id="editAgentSystemPromptInput" class="form-input" rows="4" placeholder="例如：你是一个友好、幽默的AI助手，喜欢用表情符号..."></textarea>
+                <small style="color: var(--text-muted); font-size: 12px;">配置智能体的人设与发言风格</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">发言间隔（秒）</label>
+                <input type="number" id="editAgentIntervalInput" class="form-input" min="10" max="300">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="app.hideEditAgentModal()">取消</button>
+                <button class="btn btn-primary" onclick="app.saveEditAgent()">保存</button>
             </div>
         </div>
     </div>
@@ -473,6 +503,7 @@
             showAddAgentModal() {
                 document.getElementById('addAgentModal').classList.add('show');
                 document.getElementById('agentNameInput').value = '';
+                document.getElementById('agentSystemPromptInput').value = '';
                 document.getElementById('agentIntervalInput').value = '30';
             },
 
@@ -480,8 +511,69 @@
                 document.getElementById('addAgentModal').classList.remove('show');
             },
 
+            showEditAgentModal(agentId) {
+                const agent = this.agents.find(a => a.id === agentId);
+                if (!agent) return;
+
+                document.getElementById('editAgentId').value = agentId;
+                document.getElementById('editAgentNameInput').value = agent.name;
+                document.getElementById('editAgentSystemPromptInput').value = agent.systemPrompt || '';
+                document.getElementById('editAgentIntervalInput').value = agent.interval;
+                document.getElementById('editAgentModal').classList.add('show');
+            },
+
+            hideEditAgentModal() {
+                document.getElementById('editAgentModal').classList.remove('show');
+            },
+
+            async saveEditAgent() {
+                const agentId = document.getElementById('editAgentId').value;
+                const name = document.getElementById('editAgentNameInput').value.trim();
+                const systemPrompt = document.getElementById('editAgentSystemPromptInput').value.trim();
+                const interval = parseInt(document.getElementById('editAgentIntervalInput').value);
+
+                if (!name) {
+                    alert('请输入智能体名称');
+                    return;
+                }
+
+                this.hideEditAgentModal();
+                this.log('系统', `正在更新智能体: ${name}...`, 'info');
+
+                try {
+                    // Update via API
+                    const response = await fetch(`${this.apiUrl}/admin/agents/${agentId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            agent_name: name,
+                            system_prompt: systemPrompt || null
+                        })
+                    });
+
+                    if (response.ok) {
+                        // Update local storage
+                        const agent = this.agents.find(a => a.id === agentId);
+                        if (agent) {
+                            agent.name = name;
+                            agent.systemPrompt = systemPrompt || null;
+                            agent.interval = interval;
+                            this.saveAgents();
+                            this.renderAgents();
+                            this.log(name, '更新成功！', 'success');
+                        }
+                    } else {
+                        const error = await response.text();
+                        this.log('系统', `更新失败: ${error}`, 'error');
+                    }
+                } catch (error) {
+                    this.log('系统', `更新失败: ${error.message}`, 'error');
+                }
+            },
+
             async addAgent() {
                 const name = document.getElementById('agentNameInput').value.trim();
+                const systemPrompt = document.getElementById('agentSystemPromptInput').value.trim();
                 const interval = parseInt(document.getElementById('agentIntervalInput').value);
 
                 if (!name) {
@@ -493,10 +585,15 @@
                 this.log('系统', `正在注册智能体: ${name}...`, 'info');
 
                 try {
+                    const requestBody = { agent_name: name };
+                    if (systemPrompt) {
+                        requestBody.system_prompt = systemPrompt;
+                    }
+
                     const response = await fetch(`${this.apiUrl}/agents/register`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name })
+                        body: JSON.stringify(requestBody)
                     });
 
                     if (response.ok) {
@@ -505,6 +602,7 @@
                             id: data.agent_id,
                             name: name,
                             token: data.auth_token,
+                            systemPrompt: systemPrompt || null,
                             interval: interval,
                             status: 'idle',
                             messageCount: 0,
@@ -549,6 +647,7 @@
                                 `<button class="btn btn-success" onclick="app.startAgent(${index})">启动</button>` :
                                 `<button class="btn btn-danger" onclick="app.stopAgent(${index})">停止</button>`
                             }
+                            <button class="btn btn-primary" onclick="app.showEditAgentModal(${index})">编辑</button>
                             <button class="btn btn-secondary" onclick="app.removeAgent(${index})">删除</button>
                         </div>
                     </div>

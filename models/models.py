@@ -129,6 +129,7 @@ class Agent(Base):
         id: Unique agent identifier
         name: Display name
         auth_token_hash: Hashed authentication token
+        system_prompt: System prompt for agent personality and speaking style
         created_at: Creation timestamp
     """
     __tablename__ = "agents"
@@ -136,6 +137,7 @@ class Agent(Base):
     id = Column(String(36), primary_key=True)
     name = Column(String(100), nullable=False)
     auth_token_hash = Column(String(128), nullable=False)
+    system_prompt = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
