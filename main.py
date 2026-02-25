@@ -107,12 +107,6 @@ async def auth_info():
     return FileResponse("frontend/auth-info.html")
 
 
-@app.get("/simulator.html")
-async def simulator():
-    """Serve agent simulator page."""
-    return FileResponse("frontend/simulator.html")
-
-
 @app.get("/api-docs")
 async def api_docs():
     """Serve API documentation page."""
