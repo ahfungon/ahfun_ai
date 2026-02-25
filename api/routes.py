@@ -2186,6 +2186,16 @@ async def get_scoring_stats(db: Session = Depends(get_db)):
     avg_score = db.query(func.avg(MessageRelevanceScore.relevance_score)).scalar()
 
     # 4. Recent 20 messages with scoring status
+    # Calculate delay in database to handle timezone correctly
+    from sqlalchemy import case, cast, Float
+    from sqlalchemy.sql import extract
+    
+    delay_expr = case(
+        (MessageRelevanceScore.evaluated_at.isnot(None), 
+         extract('epoch', MessageRelevanceScore.evaluated_at - Message.created_at)),
+        else_=None
+    )
+    
     recent_msgs = db.query(
         Message.id,
         Message.content,
@@ -2193,7 +2203,8 @@ async def get_scoring_stats(db: Session = Depends(get_db)):
         Message.agent_id,
         MessageRelevanceScore.relevance_score,
         MessageRelevanceScore.evaluation_comment,
-        MessageRelevanceScore.evaluated_at
+        MessageRelevanceScore.evaluated_at,
+        delay_expr.label('delay_seconds')
     ).outerjoin(
         MessageRelevanceScore, Message.id == MessageRelevanceScore.message_id
     ).order_by(desc(Message.created_at)).limit(20).all()
@@ -2206,19 +2217,9 @@ async def get_scoring_stats(db: Session = Depends(get_db)):
     messages_list = []
     for m in recent_msgs:
         scored = m.relevance_score is not None
-        delay = None
-        if scored and m.evaluated_at and m.created_at:
-            # Handle timezone-aware and timezone-naive datetime comparison
-            try:
-                # If evaluated_at is timezone-aware, convert created_at to UTC
-                if m.evaluated_at.tzinfo is not None:
-                    from datetime import timezone
-                    created_at_utc = m.created_at.replace(tzinfo=timezone.utc) if m.created_at.tzinfo is None else m.created_at
-                    delay = round((m.evaluated_at - created_at_utc).total_seconds(), 1)
-                else:
-                    delay = round((m.evaluated_at - m.created_at).total_seconds(), 1)
-            except (TypeError, AttributeError):
-                delay = None
+        # Use delay calculated by database
+        delay = round(float(m.delay_seconds), 1) if m.delay_seconds is not None else None
+        
         messages_list.append({
             "message_id": m.id,
             "agent_name": agent_map.get(m.agent_id, m.agent_id),
