@@ -1856,14 +1856,14 @@ async def get_llm_config(db: Session = Depends(get_db)):
         "minimax": {
             "api_key": minimax_key,
             "masked_key": mask_key(minimax_key),
-            "api_url": "https://api.minimax.io/v1",
+            "api_url": "https://api.minimax.chat/v1",
             "model": "MiniMax-M2.5",
             "is_configured": bool(minimax_key)
         },
         # 保留旧格式以兼容
         "api_key": deepseek_key if provider == 'deepseek' else minimax_key,
         "masked_key": mask_key(deepseek_key if provider == 'deepseek' else minimax_key),
-        "api_url": "https://api.deepseek.com/v1" if provider == 'deepseek' else "https://api.minimax.io/v1",
+        "api_url": "https://api.deepseek.com/v1" if provider == 'deepseek' else "https://api.minimax.chat/v1",
         "model": "deepseek-chat" if provider == 'deepseek' else "MiniMax-M2.5",
         "is_configured": bool(deepseek_key if provider == 'deepseek' else minimax_key)
     }

@@ -882,7 +882,7 @@ GET /api/admin/config/llm
   "minimax": {
     "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
     "masked_key": "eyJhbGci...1KaM",
-    "api_url": "https://api.minimax.io/v1",
+    "api_url": "https://api.minimax.chat/v1",
     "model": "MiniMax-M2.5",
     "is_configured": true
   },

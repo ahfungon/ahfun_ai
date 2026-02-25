@@ -165,12 +165,12 @@ class SystemConfigService:
         },
         {
             "key": "minimax_api_url",
-            "value": "https://api.minimax.io/v1",
+            "value": "https://api.minimax.chat/v1",
             "config_type": "text",
             "category": "llm",
             "display_name": "MiniMax API URL",
             "description": "MiniMax API 端点地址（OpenAI 兼容格式）",
-            "default_value": "https://api.minimax.io/v1",
+            "default_value": "https://api.minimax.chat/v1",
             "display_order": 41
         },
         {

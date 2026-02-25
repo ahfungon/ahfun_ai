@@ -51,7 +51,7 @@ class Settings(BaseSettings):
         description="MiniMax API key for summary generation"
     )
     minimax_api_url: str = Field(
-        default="https://api.minimax.io/v1",
+        default="https://api.minimax.chat/v1",
         description="MiniMax API endpoint (OpenAI compatible)"
     )
     minimax_model: str = Field(
