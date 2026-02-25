@@ -1814,7 +1814,19 @@ ${conversationHistory || '（暂无对话历史）'}
                     }
 
                     const data = await response.json();
-                    const reply = data.content.trim();
+                    let reply = data.content.trim();
+                    
+                    // 过滤 MiniMax 的思考过程标签
+                    if (agent.mode === 'minimax') {
+                        // 移除 <think>...</think> 标签及其内容
+                        reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                        
+                        // 如果过滤后为空，记录警告
+                        if (!reply) {
+                            this.log(`⚠️ ${agent.name} MiniMax 响应被完全过滤，使用模板模式`, 'warning');
+                            return this.generateTemplateReply(topicData, recentMessages, agent);
+                        }
+                    }
                     
                     this.log(`🤖 ${agent.name} 使用 ${agent.mode.toUpperCase()} 生成回复`, 'info');
                     return reply;

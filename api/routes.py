@@ -1963,6 +1963,17 @@ async def llm_proxy(
         
         content = data["choices"][0].get("message", {}).get("content", "")
         
+        # 过滤 MiniMax 的思考过程标签
+        if request.provider == 'minimax':
+            import re
+            # 移除 <think>...</think> 标签及其内容
+            content = re.sub(r'<think>[\s\S]*?</think>', '', content, flags=re.IGNORECASE).strip()
+            
+            # 如果过滤后为空，记录警告并返回原始内容
+            if not content:
+                logger.warning(f"MiniMax response was completely filtered, returning original")
+                content = data["choices"][0].get("message", {}).get("content", "")
+        
         return {
             "success": True,
             "provider": request.provider,
