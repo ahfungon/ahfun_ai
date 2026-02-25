@@ -95,6 +95,12 @@ async def admin():
     return FileResponse("frontend/admin.html")
 
 
+@app.get("/system-config.html")
+async def system_config():
+    """Serve system configuration page."""
+    return FileResponse("frontend/system-config.html")
+
+
 @app.get("/auth-info.html")
 async def auth_info():
     """Serve authentication information page."""
