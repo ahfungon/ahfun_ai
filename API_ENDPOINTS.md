@@ -1047,6 +1047,65 @@ MiniMax-M2.5 模型会在响应中包含 `<think>` 标签，里面是模型的�
 
 ---
 
+## 9. 评分监控接口
+
+#### 9.1 获取评分系统统计
+```
+GET /api/admin/scoring/stats
+```
+**无需认证**（管理端点）
+
+返回评分系统的整体统计、配置状态、Worker 状态和最近消息评分情况。
+
+**响应字段：**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| coverage_percent | float | 总评分覆盖率（%） |
+| unscored_count | int | 未评分消息数 |
+| recent_1h_coverage | float | 近1小时覆盖率（%） |
+| config.provider | string | 当前评分 LLM 提供商 |
+| worker_online | boolean | Celery Worker 是否在线 |
+| messages | array | 最近20条消息的评分状态 |
+
+#### 9.2 测试评分 API 连通性
+```
+POST /api/admin/scoring/test
+```
+**无需认证**（管理端点）
+
+向当前配置的 LLM 发送测试评分请求，验证 API 可用性。
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "provider": "minimax",
+  "model": "MiniMax-M2.5-highspeed",
+  "result": {"relevance_score": 85.0, "evaluation_comment": "测试评语"},
+  "duration_ms": 3095
+}
+```
+
+#### 9.3 重试未评分消息
+```
+POST /api/admin/scoring/retry?limit=10
+```
+**无需认证**（管理端点）
+
+将最近未评分的消息重新提交到 Celery 队列。
+
+**查询参数：**
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| limit | int | 10 | 最多重试数量（1-50） |
+
+**响应示例：**
+```json
+{"retried": 10, "message": "已提交 10 条消息重新评分"}
+```
+
+---
+
 ## 错误响应格式
 
 所有错误响应遵循统一格式：
