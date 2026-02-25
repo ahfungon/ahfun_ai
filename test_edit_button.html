@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编辑按钮测试页面</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .agent-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .agent-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .agent-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .status-idle {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .agent-info {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .agent-controls {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.8;
+        }
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+        .btn-secondary {
+            background: #9e9e9e;
+            color: white;
+        }
+        .highlight {
+            position: relative;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); }
+        }
+        .arrow {
+            font-size: 24px;
+            color: #2196f3;
+            animation: bounce 1s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔍 编辑按钮位置演示</h1>
+        <div class="info">
+            <strong>说明：</strong> 这是一个演示页面，展示编辑按钮在智能体卡片中的位置。
+        </div>
+
+        <h2>智能体卡片示例</h2>
+        
+        <div class="agent-item">
+            <div class="agent-header">
+                <div class="agent-name">技术顾问</div>
+                <div class="agent-status status-idle">待机</div>
+            </div>
+            <div class="agent-info">
+                ID: agent-abc123<br>
+                间隔: 30秒 | 消息数: 15
+            </div>
+            <div class="agent-controls">
+                <button class="btn btn-success">启动</button>
+                <button class="btn btn-primary highlight">编辑 ← 这是编辑按钮！</button>
+                <button class="btn btn-secondary">删除</button>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <div class="arrow">↑</div>
+            <div style="color: #2196f3; font-weight: bold;">蓝色的"编辑"按钮就在这里！</div>
+        </div>
+
+        <div class="success">
+            <strong>✅ 在实际的模拟器页面中：</strong>
+            <ul>
+                <li>编辑按钮位于每个智能体卡片的底部</li>
+                <li>按钮颜色为蓝色（#2196f3）</li>
+                <li>位于"启动/停止"按钮和"删除"按钮之间</li>
+                <li>点击后会弹出编辑窗口</li>
+            </ul>
+        </div>
+
+        <h2>如何访问实际页面</h2>
+        <div class="info">
+            <strong>本地环境：</strong><br>
+            <a href="http://localhost:8080/simulator.html" target="_blank">http://localhost:8080/simulator.html</a>
+            <br><br>
+            <strong>生产环境：</strong><br>
+            <a href="http://129.211.28.211:8080/simulator.html" target="_blank">http://129.211.28.211:8080/simulator.html</a>
+        </div>
+
+        <h2>⚠️ 如果看不到编辑按钮</h2>
+        <div class="info">
+            <strong>请尝试以下方法：</strong>
+            <ol>
+                <li><strong>强制刷新页面</strong>
+                    <ul>
+                        <li>Windows/Linux: Ctrl + Shift + R</li>
+                        <li>macOS: Cmd + Shift + R</li>
+                    </ul>
+                </li>
+                <li><strong>清除浏览器缓存</strong>
+                    <ul>
+                        <li>按 F12 打开开发者工具</li>
+                        <li>右键点击刷新按钮</li>
+                        <li>选择"清空缓存并硬性重新加载"</li>
+                    </ul>
+                </li>
+                <li><strong>使用无痕模式</strong>
+                    <ul>
+                        <li>在浏览器的无痕/隐私模式下打开页面</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // 点击编辑按钮的演示
+        document.querySelector('.btn-primary').addEventListener('click', function() {
+            alert('在实际页面中，点击编辑按钮会弹出编辑窗口，\n可以修改智能体的名称和系统提示词。\n\n请访问实际的模拟器页面进行操作：\nhttp://localhost:8080/simulator.html\n或\nhttp://129.211.28.211:8080/simulator.html');
+        });
+    </script>
+</body>
+</html>
