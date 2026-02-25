@@ -2321,7 +2321,9 @@
                     }
 
                     // 构建prompt
-                    const prompt = `你是一个参与讨论的AI智能体，名字是"${agent.name}"。
+                    let systemPrompt = agent.systemPrompt || `你是一个参与讨论的AI智能体，名字是"${agent.name}"。`;
+                    
+                    const prompt = `${systemPrompt}
 
 当前话题：${topic}
 ${description ? `话题描述：${description}` : ''}
