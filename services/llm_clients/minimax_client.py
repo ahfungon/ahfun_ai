@@ -1,6 +1,7 @@
 """MiniMax client for summary generation and message scoring."""
 import json
 import logging
+import re
 import time
 from typing import Dict, Any, Optional
 import requests
@@ -8,6 +9,37 @@ import requests
 from .base_client import BaseLLMClient, LLMClientError, LLMTimeoutError, LLMRateLimitError
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_json_from_response(content: str) -> str:
+    """
+    Extract clean JSON from MiniMax response content.
+    
+    MiniMax models (especially M2.5-highspeed) may return content with:
+    1. <think>...</think> reasoning tags
+    2. ```json ... ``` markdown code blocks
+    3. Both combined
+    
+    This function strips those wrappers to get the raw JSON string.
+    """
+    if not content:
+        return content
+    
+    # Step 1: Remove <think>...</think> blocks (including newlines)
+    cleaned = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+    
+    # Step 2: Extract from ```json ... ``` code blocks if present
+    code_block_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', cleaned, flags=re.DOTALL)
+    if code_block_match:
+        cleaned = code_block_match.group(1).strip()
+    
+    # Step 3: If still not valid JSON, try to find a JSON object in the text
+    if cleaned and not cleaned.startswith('{'):
+        json_match = re.search(r'\{[^{}]*\}', cleaned, flags=re.DOTALL)
+        if json_match:
+            cleaned = json_match.group(0).strip()
+    
+    return cleaned
 
 
 class MiniMaxClient(BaseLLMClient):
@@ -178,12 +210,16 @@ class MiniMaxClient(BaseLLMClient):
             if "choices" not in data or not data["choices"]:
                 raise LLMClientError("Invalid response format: missing choices")
             
-            content = data["choices"][0].get("message", {}).get("content", "")
+            raw_content = data["choices"][0].get("message", {}).get("content", "")
+            
+            # Clean response: strip <think> tags and markdown code blocks
+            content = _extract_json_from_response(raw_content)
             
             # Parse JSON response
             try:
                 parsed_content = json.loads(content)
             except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON after cleaning. Raw: {raw_content[:500]}")
                 raise LLMClientError(f"Failed to parse JSON response: {str(e)}")
             
             # Extract and validate fields
@@ -286,13 +322,16 @@ class MiniMaxClient(BaseLLMClient):
                 logger.error("Invalid response format: missing choices")
                 return None
             
-            content = data["choices"][0].get("message", {}).get("content", "")
+            raw_content = data["choices"][0].get("message", {}).get("content", "")
+            
+            # Clean response: strip <think> tags and markdown code blocks
+            content = _extract_json_from_response(raw_content)
             
             # Parse JSON response
             try:
                 parsed_content = json.loads(content)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON response: {str(e)}")
+                logger.error(f"Failed to parse scoring JSON after cleaning. Raw: {raw_content[:500]}")
                 return None
             
             # Extract and validate fields
