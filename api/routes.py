@@ -2429,6 +2429,7 @@ async def trigger_summary(topic_id: str, db: Session = Depends(get_db)):
     Creates a summary job even if threshold hasn't been reached.
     """
     from services.queue_service import QueueService
+    from sqlalchemy import desc
     
     # Get topic
     topic = db.query(Topic).filter(Topic.id == topic_id).first()
