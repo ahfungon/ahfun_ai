@@ -54,8 +54,8 @@ class MiniMaxClient(BaseLLMClient):
         self,
         api_key: str,
         api_url: str,
-        timeout: int = 30,
-        max_retries: int = 3,
+        timeout: int = 60,
+        max_retries: int = 5,
         retry_delays: list[int] = None,
         model: str = "MiniMax-M2.5"
     ):
@@ -65,12 +65,12 @@ class MiniMaxClient(BaseLLMClient):
         Args:
             api_key: MiniMax API key
             api_url: MiniMax API endpoint URL
-            timeout: Request timeout in seconds (default: 30)
-            max_retries: Maximum retry attempts (default: 3)
-            retry_delays: Retry delay intervals (default: [1, 2, 4])
+            timeout: Request timeout in seconds (default: 60)
+            max_retries: Maximum retry attempts (default: 5)
+            retry_delays: Retry delay intervals (default: [2, 4, 8, 12, 16])
             model: Model name to use (default: "MiniMax-M2.5")
         """
-        super().__init__(api_key, api_url, timeout, max_retries, retry_delays)
+        super().__init__(api_key, api_url, timeout, max_retries, retry_delays or [2, 4, 8, 12, 16])
         self.model = model
     
     def generate_summary(
@@ -267,7 +267,7 @@ class MiniMaxClient(BaseLLMClient):
         Evaluate message relevance using MiniMax API.
         
         This method is designed for async scoring and returns None on failure
-        instead of raising exceptions.
+        instead of raising exceptions. Includes retry logic for transient errors.
         
         Args:
             prompt: Evaluation prompt
@@ -304,49 +304,88 @@ class MiniMaxClient(BaseLLMClient):
             "response_format": {"type": "json_object"}
         }
         
-        try:
-            response = requests.post(
-                f"{self.api_url}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=self.timeout
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"MiniMax API error (status {response.status_code}): {response.text}")
-                return None
-            
-            data = response.json()
-            
-            if "choices" not in data or not data["choices"]:
-                logger.error("Invalid response format: missing choices")
-                return None
-            
-            raw_content = data["choices"][0].get("message", {}).get("content", "")
-            
-            # Clean response: strip <think> tags and markdown code blocks
-            content = _extract_json_from_response(raw_content)
-            
-            # Parse JSON response
+        max_retries = self.max_retries
+        retry_delays = self.retry_delays
+        
+        for attempt in range(max_retries):
             try:
-                parsed_content = json.loads(content)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse scoring JSON after cleaning. Raw: {raw_content[:500]}")
+                response = requests.post(
+                    f"{self.api_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout
+                )
+                
+                # Retry on 5xx server errors and 429 rate limit
+                if response.status_code == 429 or (500 <= response.status_code < 600):
+                    if attempt < max_retries - 1:
+                        delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+                        logger.warning(
+                            f"MiniMax scoring API error {response.status_code}, "
+                            f"retrying in {delay}s (attempt {attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(
+                            f"MiniMax scoring failed after {max_retries} attempts. "
+                            f"Last status: {response.status_code}, body: {response.text[:300]}"
+                        )
+                        return None
+                
+                if response.status_code != 200:
+                    logger.error(f"MiniMax scoring API error (status {response.status_code}): {response.text}")
+                    return None
+                
+                data = response.json()
+                
+                if "choices" not in data or not data["choices"]:
+                    logger.error("Invalid response format: missing choices")
+                    return None
+                
+                raw_content = data["choices"][0].get("message", {}).get("content", "")
+                
+                # Clean response: strip <think> tags and markdown code blocks
+                content = _extract_json_from_response(raw_content)
+                
+                # Parse JSON response
+                try:
+                    parsed_content = json.loads(content)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse scoring JSON after cleaning. Raw: {raw_content[:500]}")
+                    return None
+                
+                # Extract and validate fields
+                relevance_score = float(parsed_content.get("relevance_score", 0.0))
+                evaluation_comment = parsed_content.get("evaluation_comment", "")
+                
+                # Validate score range
+                if not (0 <= relevance_score <= 100):
+                    logger.warning(f"Invalid relevance_score {relevance_score}, clamping to [0, 100]")
+                    relevance_score = max(0.0, min(100.0, relevance_score))
+                
+                if attempt > 0:
+                    logger.info(f"MiniMax scoring succeeded on attempt {attempt + 1}")
+                
+                return {
+                    "relevance_score": relevance_score,
+                    "evaluation_comment": evaluation_comment
+                }
+                
+            except requests.Timeout:
+                if attempt < max_retries - 1:
+                    delay = retry_delays[min(attempt, len(retry_delays) - 1)]
+                    logger.warning(f"MiniMax scoring timeout, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                logger.error(f"MiniMax scoring timed out after {max_retries} attempts")
                 return None
-            
-            # Extract and validate fields
-            relevance_score = float(parsed_content.get("relevance_score", 0.0))
-            evaluation_comment = parsed_content.get("evaluation_comment", "")
-            
-            # Validate score range
-            if not (0 <= relevance_score <= 100):
-                logger.warning(f"Invalid relevance_score {relevance_score}, clamping to [0, 100]")
-                relevance_score = max(0.0, min(100.0, relevance_score))
-            
-            return {
-                "relevance_score": relevance_score,
-                "evaluation_comment": evaluation_comment
-            }
+                
+            except Exception as e:
+                logger.error(f"Failed to evaluate message relevance: {e}", exc_info=True)
+                return None
+        
+        return None
             
         except Exception as e:
             logger.error(f"Failed to evaluate message relevance: {e}", exc_info=True)

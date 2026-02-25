@@ -1793,27 +1793,64 @@ ${conversationHistory || '（暂无对话历史）'}
 请直接输出回复内容，不要有任何前缀或解释：`;
 
                     // 通过后端代理调用 LLM API（避免 CORS 问题）
-                    const response = await fetch('/api/admin/llm/proxy', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            provider: agent.mode,
-                            messages: [
-                                { role: 'user', content: prompt }
-                            ],
-                            temperature: 0.8,
-                            max_tokens: 500
-                        })
-                    });
+                    // 前端重试：后端代理已有重试，这里处理网络层失败
+                    const maxFrontendRetries = 2;
+                    let lastFetchError = null;
+                    let data = null;
+                    
+                    for (let attempt = 0; attempt < maxFrontendRetries; attempt++) {
+                        try {
+                            const response = await fetch('/api/admin/llm/proxy', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    provider: agent.mode,
+                                    messages: [
+                                        { role: 'user', content: prompt }
+                                    ],
+                                    temperature: 0.8,
+                                    max_tokens: 500
+                                })
+                            });
 
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        throw new Error(`${agent.mode.toUpperCase()} API调用失败: ${response.status} ${errorData.detail || ''}`);
+                            if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({}));
+                                const errMsg = `${agent.mode.toUpperCase()} API调用失败: ${response.status} ${errorData.detail || ''}`;
+                                // 4xx 错误不重试（配置问题）
+                                if (response.status >= 400 && response.status < 500) {
+                                    throw new Error(errMsg);
+                                }
+                                lastFetchError = new Error(errMsg);
+                                if (attempt < maxFrontendRetries - 1) {
+                                    const delay = (attempt + 1) * 3;
+                                    this.log(`⚠️ ${agent.name} ${agent.mode.toUpperCase()} 第${attempt + 1}次失败，${delay}秒后重试...`, 'warning');
+                                    await new Promise(r => setTimeout(r, delay * 1000));
+                                    continue;
+                                }
+                                throw lastFetchError;
+                            }
+
+                            data = await response.json();
+                            break; // 成功，跳出重试循环
+                        } catch (fetchErr) {
+                            if (fetchErr.message && fetchErr.message.includes('API调用失败: 4')) {
+                                throw fetchErr; // 4xx 不重试
+                            }
+                            lastFetchError = fetchErr;
+                            if (attempt < maxFrontendRetries - 1) {
+                                const delay = (attempt + 1) * 3;
+                                this.log(`⚠️ ${agent.name} 网络错误，${delay}秒后重试: ${fetchErr.message}`, 'warning');
+                                await new Promise(r => setTimeout(r, delay * 1000));
+                            }
+                        }
+                    }
+                    
+                    if (!data) {
+                        throw lastFetchError || new Error('LLM 调用失败');
                     }
 
-                    const data = await response.json();
                     let reply = data.content.trim();
                     
                     // 过滤 MiniMax 的思考过程标签

@@ -1903,12 +1903,12 @@ async def llm_proxy(
     # Get configuration for the requested provider
     if request.provider == 'deepseek':
         api_key = config_service.get_config_value('deepseek_api_key', '')
-        api_url = "https://api.deepseek.com/v1"
-        model = "deepseek-chat"
+        api_url = config_service.get_config_value('deepseek_api_url', 'https://api.deepseek.com/v1')
+        model = config_service.get_config_value('deepseek_model', 'deepseek-chat')
     elif request.provider == 'minimax':
         api_key = config_service.get_config_value('minimax_api_key', '')
-        api_url = "https://api.minimax.chat/v1"
-        model = "MiniMax-M2.5"
+        api_url = config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
+        model = config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1936,9 +1936,9 @@ async def llm_proxy(
     }
     
     # 重试配置
-    max_retries = 3
-    retry_delays = [1, 2, 4]  # 指数退避
-    timeout = 60  # 增加超时时间到 60 秒
+    max_retries = 5
+    retry_delays = [1, 2, 4, 8, 12]  # 指数退避，MiniMax 500 错误需要更长间隔
+    timeout = 60  # 超时时间 60 秒
     
     last_error = None
     
