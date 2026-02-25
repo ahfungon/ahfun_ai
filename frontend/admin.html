@@ -429,6 +429,7 @@
         <div class="nav-item" onclick="admin.showSection('messages')">📝 消息查看</div>
         <div class="nav-item" onclick="admin.showSection('simulator')">🧪 智能体模拟器</div>
         <div class="nav-item" onclick="admin.showSection('config')">⚙️ 系统配置</div>
+        <div class="nav-item" onclick="admin.showSection('scoring')">📈 评分监控</div>
         <div class="nav-item" onclick="admin.showSection('health')">🏥 系统健康</div>
     </div>
 
@@ -615,6 +616,23 @@
             </div>
         </div>
 
+        <!-- Scoring Monitor Section -->
+        <div id="scoring-section" class="hidden">
+            <div class="panel">
+                <div class="panel-header">
+                    📈 评分系统监控
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="admin.loadScoringStats()">刷新</button>
+                        <button class="btn btn-sm" style="background:#10b981;color:#fff;" onclick="admin.testScoringApi()">测试API</button>
+                        <button class="btn btn-sm" style="background:#f59e0b;color:#fff;" onclick="admin.retryUnscored()">重试未评分</button>
+                    </div>
+                </div>
+                <div id="scoring-content">
+                    <p style="color:#94a3b8;text-align:center;padding:40px;">点击"刷新"加载评分数据</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Health Section -->
         <div id="health-section" class="hidden">
             <div class="panel">
@@ -724,7 +742,7 @@
                 event.target.classList.add('active');
 
                 // Hide all sections
-                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'health'].forEach(s => {
+                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'scoring', 'health'].forEach(s => {
                     const sectionEl = document.getElementById(`${s}-section`);
                     if (sectionEl) {
                         sectionEl.classList.add('hidden');
@@ -749,6 +767,8 @@
                     simulator.init();
                 } else if (section === 'health') {
                     this.loadHealth();
+                } else if (section === 'scoring') {
+                    this.loadScoringStats();
                 }
             },
 
@@ -1294,6 +1314,133 @@
 
             closeModal() {
                 document.getElementById('messageModal').classList.remove('active');
+            },
+
+            // ===== Scoring Monitor =====
+            async loadScoringStats() {
+                const container = document.getElementById('scoring-content');
+                container.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:20px;">加载中...</p>';
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/scoring/stats`);
+                    const d = await resp.json();
+                    const workerColor = d.worker_online ? '#10b981' : '#ef4444';
+                    const workerText = d.worker_online ? '在线' : '离线';
+                    const coverColor = d.coverage_percent >= 80 ? '#10b981' : d.coverage_percent >= 50 ? '#f59e0b' : '#ef4444';
+                    const recentColor = d.recent_1h_coverage >= 80 ? '#10b981' : d.recent_1h_coverage >= 50 ? '#f59e0b' : '#ef4444';
+                    const keyStatus = d.config.api_key_configured
+                        ? `<span style="color:#10b981;">✅ ${d.config.api_key_preview}</span>`
+                        : `<span style="color:#ef4444;">❌ 未配置</span>`;
+
+                    let html = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:${coverColor};">${d.coverage_percent}%</div>
+                            <div style="font-size:12px;color:#64748b;">总评分覆盖率</div>
+                            <div style="font-size:11px;color:#94a3b8;">${d.total_scores}/${d.total_messages}</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:${recentColor};">${d.recent_1h_coverage}%</div>
+                            <div style="font-size:12px;color:#64748b;">近1小时覆盖率</div>
+                            <div style="font-size:11px;color:#94a3b8;">${d.recent_1h_scores}/${d.recent_1h_messages}</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:#f59e0b;">${d.unscored_count}</div>
+                            <div style="font-size:12px;color:#64748b;">未评分消息</div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid #e2e8f0;">
+                            <div style="font-size:28px;font-weight:700;color:#3b82f6;">${d.average_score ?? '-'}</div>
+                            <div style="font-size:12px;color:#64748b;">平均分</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;border:1px solid #e2e8f0;">
+                            <div style="font-weight:600;margin-bottom:8px;">🔧 评分配置</div>
+                            <div style="font-size:13px;color:#475569;">
+                                <div>提供商：<strong>${d.config.provider.toUpperCase()}</strong></div>
+                                <div>模型：<strong>${d.config.model}</strong></div>
+                                <div>API Key：${keyStatus}</div>
+                            </div>
+                        </div>
+                        <div style="background:#f8fafc;border-radius:10px;padding:16px;border:1px solid #e2e8f0;">
+                            <div style="font-weight:600;margin-bottom:8px;">⚙️ 系统状态</div>
+                            <div style="font-size:13px;color:#475569;">
+                                <div>Celery Worker：<span style="color:${workerColor};font-weight:600;">${workerText}</span></div>
+                                <div id="scoring-test-result" style="margin-top:4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-weight:600;margin-bottom:10px;">最近 20 条消息评分状态</div>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="background:#f1f5f9;text-align:left;">
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">时间</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">智能体</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">内容</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">状态</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">分数</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;">评语</th>
+                                <th style="padding:8px 10px;border-bottom:2px solid #e2e8f0;text-align:center;">延迟</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                    for (const m of d.messages) {
+                        const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('zh-CN') : '-';
+                        const statusBadge = m.scored
+                            ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:11px;">已评分</span>'
+                            : '<span style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:11px;">未评分</span>';
+                        const scoreColor = m.score >= 80 ? '#10b981' : m.score >= 60 ? '#f59e0b' : m.score !== null ? '#ef4444' : '#94a3b8';
+                        const delayText = m.delay_seconds !== null ? `${m.delay_seconds}s` : '-';
+                        const delayColor = m.delay_seconds !== null && m.delay_seconds > 30 ? '#ef4444' : '#64748b';
+
+                        html += `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px 10px;color:#64748b;white-space:nowrap;">${time}</td>
+                                <td style="padding:8px 10px;font-weight:500;">${m.agent_name}</td>
+                                <td style="padding:8px 10px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.content}</td>
+                                <td style="padding:8px 10px;text-align:center;">${statusBadge}</td>
+                                <td style="padding:8px 10px;text-align:center;font-weight:600;color:${scoreColor};">${m.score ?? '-'}</td>
+                                <td style="padding:8px 10px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.comment || '-'}</td>
+                                <td style="padding:8px 10px;text-align:center;color:${delayColor};">${delayText}</td>
+                            </tr>`;
+                    }
+
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } catch (e) {
+                    container.innerHTML = `<p style="color:#ef4444;padding:20px;">加载失败: ${e.message}</p>`;
+                }
+            },
+
+            async testScoringApi() {
+                const el = document.getElementById('scoring-test-result');
+                if (el) el.innerHTML = '<span style="color:#94a3b8;">测试中...</span>';
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/scoring/test`, { method: 'POST' });
+                    const d = await resp.json();
+                    if (d.success) {
+                        if (el) el.innerHTML = `<span style="color:#10b981;">✅ API正常 (${d.duration_ms}ms) 得分:${d.result.relevance_score}</span>`;
+                    } else {
+                        if (el) el.innerHTML = `<span style="color:#ef4444;">❌ ${d.error}</span>`;
+                    }
+                } catch (e) {
+                    if (el) el.innerHTML = `<span style="color:#ef4444;">❌ ${e.message}</span>`;
+                }
+            },
+
+            async retryUnscored() {
+                if (!confirm('确定要重新提交未评分消息吗？（最多10条）')) return;
+                try {
+                    const resp = await fetch(`${this.apiUrl}/admin/scoring/retry?limit=10`, { method: 'POST' });
+                    const d = await resp.json();
+                    alert(d.message);
+                    setTimeout(() => this.loadScoringStats(), 3000);
+                } catch (e) {
+                    alert('操作失败: ' + e.message);
+                }
             },
 
             async loadHealth() {

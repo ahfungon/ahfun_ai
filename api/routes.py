@@ -2053,3 +2053,207 @@ async def llm_proxy(
             )
 
 
+
+
+@router.get("/admin/scoring/stats")
+async def get_scoring_stats(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Get scoring system statistics and diagnostics.
+    Returns overall stats, recent scoring activity, and system health info.
+    """
+    from models.models import MessageRelevanceScore
+    from services.system_config_service import SystemConfigService
+    from sqlalchemy import func, desc, and_
+    from datetime import timedelta
+
+    config_service = SystemConfigService(db)
+    now = datetime.utcnow()
+
+    # 1. Overall stats
+    total_messages = db.query(func.count(Message.id)).scalar() or 0
+    total_scores = db.query(func.count(MessageRelevanceScore.id)).scalar() or 0
+
+    # 2. Recent activity (last 1 hour)
+    one_hour_ago = now - timedelta(hours=1)
+    recent_messages = db.query(func.count(Message.id)).filter(
+        Message.created_at >= one_hour_ago
+    ).scalar() or 0
+    recent_scores = db.query(func.count(MessageRelevanceScore.id)).filter(
+        MessageRelevanceScore.evaluated_at >= one_hour_ago
+    ).scalar() or 0
+
+    # 3. Average score
+    avg_score = db.query(func.avg(MessageRelevanceScore.relevance_score)).scalar()
+
+    # 4. Recent 20 messages with scoring status
+    recent_msgs = db.query(
+        Message.id,
+        Message.content,
+        Message.created_at,
+        Message.agent_id,
+        MessageRelevanceScore.relevance_score,
+        MessageRelevanceScore.evaluation_comment,
+        MessageRelevanceScore.evaluated_at
+    ).outerjoin(
+        MessageRelevanceScore, Message.id == MessageRelevanceScore.message_id
+    ).order_by(desc(Message.created_at)).limit(20).all()
+
+    # Get agent names
+    agent_ids = list(set(m.agent_id for m in recent_msgs))
+    agents = db.query(Agent).filter(Agent.id.in_(agent_ids)).all() if agent_ids else []
+    agent_map = {a.id: a.name for a in agents}
+
+    messages_list = []
+    for m in recent_msgs:
+        scored = m.relevance_score is not None
+        delay = None
+        if scored and m.evaluated_at and m.created_at:
+            delay = round((m.evaluated_at - m.created_at).total_seconds(), 1)
+        messages_list.append({
+            "message_id": m.id,
+            "agent_name": agent_map.get(m.agent_id, m.agent_id),
+            "content": m.content[:80] + "..." if len(m.content) > 80 else m.content,
+            "created_at": m.created_at.isoformat() + "Z" if m.created_at else None,
+            "scored": scored,
+            "score": m.relevance_score,
+            "comment": m.evaluation_comment[:60] + "..." if m.evaluation_comment and len(m.evaluation_comment) > 60 else m.evaluation_comment,
+            "evaluated_at": m.evaluated_at.isoformat() + "Z" if m.evaluated_at else None,
+            "delay_seconds": delay
+        })
+
+    # 5. Scoring config
+    provider = config_service.get_config_value('llm_provider_scoring', 'deepseek')
+    if provider == 'minimax':
+        api_key = config_service.get_config_value('minimax_api_key', '')
+        model = config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
+    else:
+        api_key = config_service.get_config_value('deepseek_api_key', '')
+        model = config_service.get_config_value('deepseek_model', 'deepseek-chat')
+
+    # 6. Celery worker status
+    worker_online = False
+    try:
+        from workers.celery_app import celery_app
+        inspector = celery_app.control.inspect(timeout=2)
+        active = inspector.active()
+        worker_online = bool(active)
+    except Exception:
+        pass
+
+    # 7. Unscored count
+    unscored_count = db.query(func.count(Message.id)).outerjoin(
+        MessageRelevanceScore, Message.id == MessageRelevanceScore.message_id
+    ).filter(MessageRelevanceScore.id == None).scalar() or 0
+
+    return {
+        "total_messages": total_messages,
+        "total_scores": total_scores,
+        "coverage_percent": round(total_scores / total_messages * 100, 1) if total_messages > 0 else 0,
+        "unscored_count": unscored_count,
+        "recent_1h_messages": recent_messages,
+        "recent_1h_scores": recent_scores,
+        "recent_1h_coverage": round(recent_scores / recent_messages * 100, 1) if recent_messages > 0 else 0,
+        "average_score": round(avg_score, 1) if avg_score else None,
+        "config": {
+            "provider": provider,
+            "model": model,
+            "api_key_configured": bool(api_key),
+            "api_key_preview": api_key[:8] + "..." if api_key else ""
+        },
+        "worker_online": worker_online,
+        "messages": messages_list
+    }
+
+
+@router.post("/admin/scoring/retry")
+async def retry_unscored_messages(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Retry scoring for recent unscored messages.
+    Enqueues Celery tasks for messages that don't have scores yet.
+    """
+    from models.models import MessageRelevanceScore
+    from sqlalchemy import desc
+
+    # Find recent unscored messages
+    unscored = db.query(Message).outerjoin(
+        MessageRelevanceScore, Message.id == MessageRelevanceScore.message_id
+    ).filter(
+        MessageRelevanceScore.id == None
+    ).order_by(desc(Message.created_at)).limit(limit).all()
+
+    if not unscored:
+        return {"retried": 0, "message": "没有未评分的消息"}
+
+    # Enqueue scoring tasks
+    from workers.tasks import evaluate_message_relevance
+    count = 0
+    for msg in unscored:
+        try:
+            evaluate_message_relevance.delay(
+                message_id=msg.id,
+                topic_id=msg.topic_id,
+                agent_id=msg.agent_id,
+                content=msg.content
+            )
+            count += 1
+        except Exception:
+            pass
+
+    return {"retried": count, "message": f"已提交 {count} 条消息重新评分"}
+
+
+@router.post("/admin/scoring/test")
+async def test_scoring_api(db: Session = Depends(get_db)):
+    """
+    Admin endpoint: Test the scoring LLM API connectivity.
+    Makes a simple test call to verify the configured provider works.
+    """
+    from services.system_config_service import SystemConfigService
+    from services.llm_clients import MiniMaxClient, DeepSeekClient
+    import time as _time
+
+    config_service = SystemConfigService(db)
+    provider = config_service.get_config_value('llm_provider_scoring', 'deepseek')
+
+    test_prompt = """请对以下发言评分。返回JSON格式（只返回JSON）：
+{"relevance_score": 85, "evaluation_comment": "测试评语"}
+
+话题：测试话题
+发言：这是一条测试消息。"""
+
+    start = _time.time()
+    try:
+        if provider == 'minimax':
+            api_key = config_service.get_config_value('minimax_api_key', '')
+            api_url = config_service.get_config_value('minimax_api_url', 'https://api.minimax.chat/v1')
+            model = config_service.get_config_value('minimax_model', 'MiniMax-M2.5')
+            client = MiniMaxClient(api_key=api_key, api_url=api_url, model=model, max_retries=1)
+        else:
+            api_key = config_service.get_config_value('deepseek_api_key', '')
+            api_url = config_service.get_config_value('deepseek_api_url', 'https://api.deepseek.com/v1')
+            model = config_service.get_config_value('deepseek_model', 'deepseek-chat')
+            client = DeepSeekClient(api_key=api_key, api_url=api_url, model=model, max_retries=1)
+
+        if not api_key:
+            return {"success": False, "error": f"{provider} API Key 未配置", "duration_ms": 0}
+
+        result = client.evaluate_message_relevance(test_prompt)
+        duration = round((_time.time() - start) * 1000)
+
+        if result:
+            return {
+                "success": True,
+                "provider": provider,
+                "model": model,
+                "result": result,
+                "duration_ms": duration
+            }
+        else:
+            return {"success": False, "error": "API 返回空结果", "duration_ms": duration}
+
+    except Exception as e:
+        duration = round((_time.time() - start) * 1000)
+        return {"success": False, "error": str(e), "duration_ms": duration}

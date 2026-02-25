@@ -386,7 +386,3 @@ class MiniMaxClient(BaseLLMClient):
                 return None
         
         return None
-            
-        except Exception as e:
-            logger.error(f"Failed to evaluate message relevance: {e}", exc_info=True)
-            return None
