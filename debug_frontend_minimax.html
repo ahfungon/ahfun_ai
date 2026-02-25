@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniMax 前端调试</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .section {
+            background: #252526;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 3px solid #007acc;
+        }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .warning { color: #dcdcaa; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 MiniMax 前端调试工具</h1>
+    
+    <div class="section">
+        <h2>步骤 1: 检查 API 配置</h2>
+        <button onclick="checkAPIConfig()">检查配置</button>
+        <pre id="config-result">点击按钮检查...</pre>
+    </div>
+
+    <div class="section">
+        <h2>步骤 2: 测试 MiniMax API 调用</h2>
+        <button onclick="testMiniMaxAPI()">测试 API</button>
+        <pre id="api-result">点击按钮测试...</pre>
+    </div>
+
+    <div class="section">
+        <h2>步骤 3: 检查浏览器缓存</h2>
+        <button onclick="checkCache()">检查缓存</button>
+        <pre id="cache-result">点击按钮检查...</pre>
+    </div>
+
+    <script>
+        async function checkAPIConfig() {
+            const result = document.getElementById('config-result');
+            result.innerHTML = '正在检查...';
+            
+            try {
+                const response = await fetch('/api/admin/config/llm');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const config = await response.json();
+                
+                let output = '<span class="success">✅ API 配置获取成功</span>\n\n';
+                output += '=== MiniMax 配置 ===\n';
+                output += `API URL: ${config.minimax.api_url}\n`;
+                output += `Model: ${config.minimax.model}\n`;
+                output += `API Key: ${config.minimax.masked_key}\n`;
+                output += `已配置: ${config.minimax.is_configured ? '是' : '否'}\n\n`;
+                
+                // 验证配置
+                if (config.minimax.api_url === 'https://api.minimax.chat/v1') {
+                    output += '<span class="success">✅ API URL 正确（旧域名）</span>\n';
+                } else if (config.minimax.api_url === 'https://api.minimax.io/v1') {
+                    output += '<span class="error">❌ API URL 错误（新域名不支持你的 API Key）</span>\n';
+                    output += '<span class="warning">应该是: https://api.minimax.chat/v1</span>\n';
+                } else {
+                    output += '<span class="error">❌ API URL 不正确</span>\n';
+                }
+                
+                if (config.minimax.model === 'MiniMax-M2.5') {
+                    output += '<span class="success">✅ 模型名称正确</span>\n';
+                } else {
+                    output += '<span class="warning">⚠️ 模型名称: ' + config.minimax.model + '</span>\n';
+                }
+                
+                result.innerHTML = output;
+                
+                // 保存配置供后续使用
+                window.minimaxConfig = config.minimax;
+                
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ 错误: ${error.message}</span>`;
+            }
+        }
+
+        async function testMiniMaxAPI() {
+            const result = document.getElementById('api-result');
+            
+            if (!window.minimaxConfig) {
+                result.innerHTML = '<span class="warning">⚠️ 请先检查 API 配置</span>';
+                return;
+            }
+            
+            result.innerHTML = '正在测试 API 调用...';
+            
+            try {
+                const config = window.minimaxConfig;
+                
+                const apiUrl = config.api_url + '/chat/completions';
+                
+                let output = `测试 URL: ${apiUrl}\n`;
+                output += `模型: ${config.model}\n\n`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: config.model,
+                        messages: [
+                            { role: 'user', content: 'Say hello in one word' }
+                        ],
+                        max_tokens: 10
+                    })
+                });
+                
+                output += `HTTP 状态码: ${response.status}\n\n`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output += '<span class="success">✅ API 调用成功！</span>\n\n';
+                    output += '响应数据:\n';
+                    output += JSON.stringify(data, null, 2);
+                    
+                    if (data.choices && data.choices[0]) {
+                        const content = data.choices[0].message.content;
+                        output += '\n\n<span class="success">💬 响应内容: ' + content + '</span>';
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    output += '<span class="error">❌ API 调用失败</span>\n\n';
+                    output += '错误响应:\n';
+                    output += JSON.stringify(errorData, null, 2);
+                }
+                
+                result.innerHTML = output;
+                
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ 错误: ${error.message}</span>\n\n`;
+                result.innerHTML += `错误类型: ${error.name}\n`;
+                result.innerHTML += `错误堆栈:\n${error.stack}`;
+            }
+        }
+
+        function checkCache() {
+            const result = document.getElementById('cache-result');
+            
+            let output = '=== 浏览器信息 ===\n';
+            output += `User Agent: ${navigator.userAgent}\n`;
+            output += `当前时间: ${new Date().toISOString()}\n`;
+            output += `页面 URL: ${window.location.href}\n\n`;
+            
+            output += '=== 缓存检查 ===\n';
+            output += '<span class="warning">⚠️ 如果看到 "Failed to fetch" 错误，可能是：</span>\n';
+            output += '1. 浏览器缓存了旧的 JavaScript 代码\n';
+            output += '2. CORS 问题\n';
+            output += '3. 网络连接问题\n\n';
+            
+            output += '<span class="success">✅ 清除缓存的方法：</span>\n';
+            output += '1. 按 Ctrl+Shift+Delete (Windows) 或 Cmd+Shift+Delete (Mac)\n';
+            output += '2. 选择"缓存的图片和文件"\n';
+            output += '3. 点击"清除数据"\n';
+            output += '4. 强制刷新页面: Ctrl+F5 (Windows) 或 Cmd+Shift+R (Mac)\n\n';
+            
+            output += '<span class="warning">或者使用无痕模式测试：</span>\n';
+            output += 'Ctrl+Shift+N (Windows) 或 Cmd+Shift+N (Mac)\n';
+            
+            result.innerHTML = output;
+        }
+
+        // 页面加载时自动检查配置
+        window.addEventListener('load', () => {
+            checkAPIConfig();
+        });
+    </script>
+</body>
+</html>

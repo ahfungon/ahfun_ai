@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>MiniMax 测试</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a9e; }
+        pre { background: #252526; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>🔍 MiniMax API 直接测试</h1>
+    <p>这个页面会直接测试 MiniMax API，不经过智能体模拟器的复杂逻辑。</p>
+    <button onclick="testAPI()">🚀 测试 MiniMax API</button>
+    <pre id="result">点击按钮开始测试...</pre>
+
+    <script>
+        async function testAPI() {
+            const result = document.getElementById('result');
+            result.textContent = '正在测试...\n\n';
+            
+            try {
+                // 1. 获取配置
+                result.textContent += '步骤 1: 获取配置...\n';
+                const configResp = await fetch('/api/admin/config/llm');
+                const config = await configResp.json();
+                
+                result.textContent += '✅ 配置获取成功\n\n';
+                result.textContent += '=== MiniMax 配置 ===\n';
+                result.textContent += JSON.stringify(config.minimax, null, 2) + '\n\n';
+                
+                // 2. 调用 API
+                const apiUrl = config.minimax.api_url + '/chat/completions';
+                result.textContent += '步骤 2: 调用 MiniMax API...\n';
+                result.textContent += '调用 URL: ' + apiUrl + '\n';
+                result.textContent += '模型: ' + config.minimax.model + '\n\n';
+                
+                const apiResp = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + config.minimax.api_key
+                    },
+                    body: JSON.stringify({
+                        model: config.minimax.model,
+                        messages: [{role: 'user', content: 'Say hello in one word'}],
+                        max_tokens: 10,
+                        temperature: 0.7
+                    })
+                });
+                
+                result.textContent += 'HTTP 状态码: ' + apiResp.status + '\n\n';
+                
+                if (apiResp.ok) {
+                    const data = await apiResp.json();
+                    result.textContent += '✅ API 调用成功！\n\n';
+                    result.textContent += '=== 响应数据 ===\n';
+                    result.textContent += JSON.stringify(data, null, 2) + '\n\n';
+                    
+                    if (data.choices && data.choices[0]) {
+                        const content = data.choices[0].message.content;
+                        result.textContent += '💬 响应内容: ' + content + '\n\n';
+                        result.textContent += '🎉 测试成功！MiniMax API 工作正常。\n';
+                        result.textContent += '\n如果智能体模拟器还是失败，请：\n';
+                        result.textContent += '1. 清除浏览器缓存（Ctrl+Shift+Delete）\n';
+                        result.textContent += '2. 强制刷新页面（Ctrl+F5 或 Cmd+Shift+R）\n';
+                        result.textContent += '3. 或使用无痕模式测试\n';
+                    }
+                } else {
+                    const errorData = await apiResp.json().catch(() => ({}));
+                    result.textContent += '❌ API 调用失败\n\n';
+                    result.textContent += '=== 错误响应 ===\n';
+                    result.textContent += JSON.stringify(errorData, null, 2);
+                }
+                
+            } catch (error) {
+                result.textContent += '\n\n❌ 错误: ' + error.message + '\n\n';
+                result.textContent += '错误类型: ' + error.name + '\n';
+                result.textContent += '错误堆栈:\n' + error.stack;
+                
+                if (error.message === 'Failed to fetch') {
+                    result.textContent += '\n\n可能的原因：\n';
+                    result.textContent += '1. 网络连接问题\n';
+                    result.textContent += '2. CORS 问题\n';
+                    result.textContent += '3. API URL 不正确\n';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
