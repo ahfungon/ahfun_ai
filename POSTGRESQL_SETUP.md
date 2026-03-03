@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档记录了双智能体对话平台从 SQLite 迁移到 PostgreSQL 的完整过程。PostgreSQL 提供了更好的并发支持、事务管理和生产环境性能。
+本文档记录了智能体圆桌派从 SQLite 迁移到 PostgreSQL 的完整过程。PostgreSQL 提供了更好的并发支持、事务管理和生产环境性能。
 
 ## 安装步骤
 
