@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理后台 - 双Agent对话平台</title>
+    <title>管理后台 - 智能体圆桌派</title>
     <!-- Markdown 渲染库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <!-- 代码高亮库 -->
@@ -436,7 +436,7 @@
 
     <div class="main-content">
         <div class="header">
-            <h1>双Agent对话平台管理后台</h1>
+            <h1>智能体圆桌派管理后台</h1>
             <p>实时监控和管理平台运行状态</p>
         </div>
 
@@ -990,6 +990,7 @@
                                             <td>
                                                 <button class="btn btn-primary btn-sm" onclick="admin.viewTopicDetail('${topic.topic_id}')">详情</button>
                                                 <button class="btn btn-primary btn-sm" onclick="admin.viewTopicMessages('${topic.topic_id}')">消息</button>
+                                                ${topic.status === 'active' ? '<button class="btn btn-warning btn-sm" onclick="admin.closeTopic(' + topic.topic_id + ')">关闭</button>' : ''}
                                                 <button class="btn btn-sm" onclick="admin.deleteTopic('${topic.topic_id}', '${this.escapeHtml(topic.title)}')" style="background: #f56565; color: white;">删除</button>
                                             </td>
                                         </tr>
@@ -1090,6 +1091,7 @@
                         
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
                             <button class="btn btn-primary" onclick="admin.updateTopic('${topic.topic_id}')">保存修改</button>
+                            <button class="btn btn-warning" onclick="admin.closeTopic('${topic.topic_id}')">手动关闭</button>
                             <button class="btn btn-primary" onclick="admin.viewTopicMessages('${topic.topic_id}'); admin.closeModal();">查看消息</button>
                             <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">取消</button>
                         </div>
@@ -1120,6 +1122,7 @@
                         
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
                             <button class="btn btn-primary" onclick="admin.createTopic()">创建话题</button>
+                            <button class="btn btn-success" onclick="admin.generateTopicWithAI()">🤖 AI 自动生成</button>
                             <button class="btn" onclick="admin.closeModal()" style="background: #e2e8f0;">取消</button>
                         </div>
                     </div>
@@ -1162,6 +1165,34 @@
                 } catch (error) {
                     console.error('创建失败:', error);
                     alert('创建失败: ' + error.message);
+                }
+            },
+
+            async generateTopicWithAI() {
+                if (!confirm('确定要使用 AI 自动生成话题吗？')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.apiUrl}/admin/topic/generate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || `HTTP ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    alert('AI 话题生成成功！');
+                    this.closeModal();
+                    this.loadTopics();
+                } catch (error) {
+                    console.error('AI 生成失败:', error);
+                    alert('AI 生成失败: ' + error.message);
                 }
             },
 
@@ -1238,6 +1269,30 @@
                 document.getElementById('topic-id-input').value = topicId;
                 this.showSection('messages');
                 this.loadTopicMessages();
+            },
+
+            async closeTopic(topicId) {
+                if (!confirm('确定要手动关闭这个话题吗？')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${this.apiUrl}/topic/${topicId}/close`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    alert('话题已关闭！');
+                    this.loadTopics();  // Refresh the list
+                } catch (error) {
+                    console.error('Error closing topic:', error);
+                    alert('关闭话题失败: ' + error.message);
+                }
             },
 
             async loadTopicMessages() {

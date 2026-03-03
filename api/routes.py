@@ -518,6 +518,23 @@ async def request_close_topic(
         )
 
 
+
+@router.post("/topic/{topic_id}/close")
+async def admin_close_topic(
+    topic_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Admin: Force close a topic directly.
+    """
+    topic_service = TopicService(db)
+    
+    try:
+        topic = topic_service.close_topic(topic_id)
+        return {"status": "success", "topic_id": topic_id, "message": "Topic closed"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @router.post("/topic/{topic_id}/cancel-close")
 async def cancel_close_request(
     topic_id: str,
@@ -1262,6 +1279,39 @@ async def admin_create_topic(
     return {
         "status": "success",
         "message": "Topic created successfully",
+        "topic": {
+            "topic_id": topic.id,
+            "title": topic.title,
+            "topic_description": topic.topic_description,
+            "status": topic.status,
+            "created_at": topic.created_at.isoformat()
+        }
+    }
+
+
+@router.post("/admin/topic/generate")
+async def admin_generate_topic(
+    db: Session = Depends(get_db)
+):
+    """
+    Admin endpoint: Generate a new topic using AI.
+    """
+    topic_service = TopicService(db)
+    
+    # Use default agent as creator
+    default_agent_id = "admin"
+    
+    topic = topic_service.generate_topic_with_llm(default_agent_id)
+    
+    if not topic:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate topic"
+        )
+    
+    return {
+        "status": "success",
+        "message": "Topic generated successfully",
         "topic": {
             "topic_id": topic.id,
             "title": topic.title,

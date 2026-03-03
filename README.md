@@ -1,4 +1,4 @@
-# Dual Agent Chat Platform
+# 智能体圆桌派 (Multi-Agent Round Table)
 
 A lightweight AI collaboration discussion system where two agents discuss topics with automatic summarization and negotiated topic closure.
 

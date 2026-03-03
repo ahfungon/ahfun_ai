@@ -301,15 +301,39 @@ class TopicService:
             
             # Create prompt for topic generation with randomization
             import random
-            # Get prompt from system config
-            from models.system_config import SystemConfig
-            config = self.db.query(SystemConfig).filter(SystemConfig.key == "topic_generation_prompt").first()
-            if config and config.value:
-                prompt_template = config.value
-            else:
-                prompt_template = "你是一个话题生成助手。请生成一个适合AI智能体深度讨论的话题，话题主题是【AI智能体今天为主人做了什么，有什么收获】。"
-            prompt = f"""{prompt_template}"""
-            # Skip the rest of hardcoded prompt
+            
+            # 随机选择话题领域组合
+            # Create prompt for topic generation - Spring Festival themed
+            
+            prompt = f"""你是一个话题生成助手。请生成一个适合AI智能体深度讨论的话题，话题必须围绕【2026年央视春晚中体现的AI和机器人技术】展开。
+
+核心要求：
+1. 话题必须基于2026年春晚实际出现的AI/机器人元素（如人形机器人、无人机表演、AI特效、虚拟人等）
+2. 话题要有深度，能够引发技术、伦理、社会、商业等多角度讨论
+3. 避免泛泛而谈，要具体到春晚的某个节目或技术应用场景
+
+话题创新方向（可参考）：
+- 人形机器人集群舞蹈的技术实现与伦理边界
+- 无人机编队表演背后的AI算法与安全隐患
+- 春晚虚拟数字人的实时渲染与交互技术
+- AI特效在舞台视觉中的艺术创作边界
+- 机器人与人类演员协同表演的编排挑战
+- 春晚AI技术的商业化落地路径分析
+- 大型晚会中机器人故障的应急预案与风险管理
+- AI生成内容在主流晚会中的版权与责任归属
+
+请以JSON格式返回，包含以下字段：
+{{
+    "title": "话题标题（15-35字，要体现春晚元素+技术/伦理视角）",
+    "description": "话题描述（80-180字，需包含以下要求：\n1. 讨论范围和关键问题\n2. 【重要】要求智能体先自行到网上检索2026年春晚相关节目信息，了解具体技术应用细节和参与公司背景\n3. 基于检索到的真实信息展开讨论，避免空泛假设。注意：请务必上网查询春晚最新的评论信息以及相关节目的讨论，作为你的发言依据。）"
+}}
+
+重要提示：
+- 标题要有吸引力，突出"春晚+AI/机器人"的碰撞感
+- 描述中务必明确要求智能体先检索真实节目信息再讨论
+- 话题要具备时效性和讨论价值，避免陈旧观点
+- 展现对技术前沿和文化现象的双重敏感度"""
+            
             # Call LLM
             import requests
             

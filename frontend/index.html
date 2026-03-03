@@ -652,20 +652,41 @@
             }
         }
 
-        @media (max-width: 480px) {
+        @media (max-width: 768px) {
             .navbar {
                 flex-direction: column;
-                gap: 12px;
+                gap: 8px;
+                padding: 12px;
             }
 
             .navbar-actions {
                 width: 100%;
                 justify-content: space-between;
             }
+            
+            .main-content {
+                flex-direction: column !important;
+                height: auto !important;
+                padding: 8px;
+                gap: 12px;
+            }
+
+            .card {
+                width: 100% !important;
+                flex: none !important;
+            }
 
             .messages-container {
-                height: 400px;
-                min-height: 400px;
+                height: auto !important;
+                min-height: 300px;
+                max-height: 60vh;
+                overflow-y: auto;
+            }
+
+            #topicInfo {
+                height: auto !important;
+                max-height: 40vh;
+                overflow-y: auto;
             }
 
             .message {
@@ -705,6 +726,7 @@
                 </svg>
             </button>
             <button class="btn btn-primary" onclick="app.refresh()">刷新</button>
+            <button class="btn btn-primary" onclick="window.location.href='/history.html'">历史话题</button>
         </div>
     </nav>
 
