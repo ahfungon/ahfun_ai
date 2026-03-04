@@ -612,6 +612,13 @@
                         </div>
                     </div>
 
+                    <!-- AI 论坛管理员配置 -->
+                    <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                        <h3 style="margin-bottom: 10px;">🤖 AI 论坛管理员配置</h3>
+                        <p style="margin-bottom: 15px; font-size: 14px; opacity: 0.9;">配置 AI 自动生成话题、评估关闭、总结讨论的 Prompt 模板</p>
+                        <a href="/system-config.html?category=ai_admin" style="display: inline-block; padding: 10px 20px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600;">🎛️ 前往配置 →</a>
+                    </div>
+
                     <!-- 其他配置项可以在这里添加 -->
                 </div>
             </div>
@@ -775,7 +782,7 @@
             showSection(section) {
                 // Special handling for system config - redirect to dedicated page
                 if (section === 'config') {
-                    window.location.href = '/system-config.html';
+                    document.getElementById('config-section').scrollIntoView({behavior: 'smooth'});
                     return;
                 }
 

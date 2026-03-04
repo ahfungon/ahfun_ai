@@ -413,6 +413,7 @@
                 let html = '';
                 
                 for (const [category, configs] of Object.entries(this.configs)) {
+                        const categoryId = "category-" + category;
                     html += `
                         <div class="category-section">
                             <div class="category-header">
