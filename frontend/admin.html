@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理后台 - 智能体圆桌派</title>
-    <!-- Markdown 渲染库 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-    <!-- 代码高亮库 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/es/highlight.min.js"></script>
+    <script src="/static/vendor/marked.min.js"></script>
+    <link rel="stylesheet" href="/static/vendor/github-dark.min.css">
+    <script src="/static/vendor/highlight.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -33,6 +31,8 @@
             padding: 20px;
             overflow-y: auto;
             z-index: 1000;
+            display: flex;
+            flex-direction: column;
         }
 
         .sidebar h2 {
@@ -424,8 +424,6 @@
     <div class="sidebar">
         <h2>🎛️ 管理后台</h2>
         <div class="nav-item active" onclick="admin.showSection('dashboard')">📊 仪表盘</div>
-        <div class="nav-item" onclick="localStorage.removeItem('admin_logged_in'); location.reload()">🚪 退出登录</div>
-        <div class="nav-item" onclick="localStorage.removeItem('admin_logged_in'); location.reload()">🚪 退出登录</div>
         <div class="nav-item" onclick="admin.showSection('agents')">🤖 智能体管理</div>
         <div class="nav-item" onclick="admin.showSection('topics')">💬 话题管理</div>
         <div class="nav-item" onclick="admin.showSection('messages')">📝 消息查看</div>
@@ -434,6 +432,7 @@
         <div class="nav-item" onclick="admin.showSection('scoring')">📈 评分监控</div>
         <div class="nav-item" onclick="admin.showSection('summary')">📋 总结监控</div>
         <div class="nav-item" onclick="admin.showSection('health')">🏥 系统健康</div>
+        <div class="nav-item" style="margin-top:auto;border-top:1px solid rgba(255,255,255,0.15);color:#f87171;" onclick="safeStorage.removeItem('admin_logged_in'); location.reload()">🚪 退出登录</div>
     </div>
 
     <div class="main-content">
@@ -787,31 +786,41 @@
     </div>
 
     <script>
-(function() {
-    if (!localStorage.getItem('admin_logged_in')) {
-        var d = document.createElement('div');
-        d.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
-        d.innerHTML = '<div style="background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><h2 style="margin-bottom:20px;">🤖 智能体圆桌派</h2><input id="u" placeholder="用户名" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><input id="p" type="password" placeholder="密码" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><button id="loginBtn" style="padding:12px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">登 录</button></div>';
-        document.body.innerHTML = '';
-        document.body.appendChild(d);
-        document.getElementById('loginBtn').onclick = function() {
-            if (document.getElementById('u').value === 'ahfun' && document.getElementById('p').value === '8118') {
-                localStorage.setItem('admin_logged_in', 'true');
-                location.reload();
-            } else {
-                alert('用户名或密码错误');
-            }
-        };
-        throw new Error('Not logged in');
-    }
+// Storage utility: localStorage -> sessionStorage -> cookie fallback
+var safeStorage = (function() {
+    var backend = null;
+    try { localStorage.setItem('__test__', '1'); localStorage.removeItem('__test__'); backend = 'localStorage'; } catch(e) {}
+    if (!backend) { try { sessionStorage.setItem('__test__', '1'); sessionStorage.removeItem('__test__'); backend = 'sessionStorage'; } catch(e) {} }
+    function setCookie(k, v, days) { var d = new Date(); d.setTime(d.getTime() + (days||7)*86400000); document.cookie = k+'='+encodeURIComponent(v)+';expires='+d.toUTCString()+';path=/;SameSite=Lax'; }
+    function getCookie(k) { var m = document.cookie.match(new RegExp('(?:^|; )'+k+'=([^;]*)')); return m ? decodeURIComponent(m[1]) : null; }
+    function delCookie(k) { document.cookie = k+'=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax'; }
+    return {
+        getItem: function(k) { try { if (backend === 'localStorage') return localStorage.getItem(k); if (backend === 'sessionStorage') return sessionStorage.getItem(k); } catch(e) {} return getCookie(k); },
+        setItem: function(k, v) { try { if (backend === 'localStorage') { localStorage.setItem(k, v); return; } if (backend === 'sessionStorage') { sessionStorage.setItem(k, v); return; } } catch(e) {} setCookie(k, v); },
+        removeItem: function(k) { try { if (backend === 'localStorage') { localStorage.removeItem(k); return; } if (backend === 'sessionStorage') { sessionStorage.removeItem(k); return; } } catch(e) {} delCookie(k); }
+    };
 })();
 
-        // Login check
-        if (!localStorage.getItem('admin_logged_in')) {
-            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;"><div style="background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><h2 style="margin-bottom:20px;">🤖 智能体圆桌派</h2><input id="u" placeholder="用户名" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><input id="p" type="password" placeholder="密码" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><button onclick="if(document.getElementById(\'u').value=='ahfun'&&document.getElementById('p').value=='8118'){localStorage.setItem('admin_logged_in','true');location.reload();}else{alert('用户名或密码错误')}" style="padding:12px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">登 录</button></div></div>';
-            throw new Error('Not logged in');
+var __adminLoggedIn = (function() {
+    if (safeStorage.getItem('admin_logged_in')) return true;
+    var d = document.createElement('div');
+    d.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+    d.innerHTML = '<div style="background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><h2 style="margin-bottom:20px;">🤖 智能体圆桌派</h2><input id="u" placeholder="用户名" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><input id="p" type="password" placeholder="密码" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><button id="loginBtn" style="padding:12px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">登 录</button></div>';
+    document.body.innerHTML = '';
+    document.body.appendChild(d);
+    d.querySelector('#loginBtn').onclick = function() {
+        if (d.querySelector('#u').value === 'ahfun' && d.querySelector('#p').value === '8118') {
+            safeStorage.setItem('admin_logged_in', 'true');
+            location.reload();
+        } else {
+            alert('用户名或密码错误');
         }
-</script>
+    };
+    d.querySelector('#p').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') d.querySelector('#loginBtn').click();
+    });
+    return false;
+})();
         const admin = {
             apiUrl: '/api',
             currentSection: 'dashboard',
@@ -821,20 +830,14 @@
             },
 
             showSection(section) {
-                // Special handling for system config - redirect to dedicated page
-                if (section === 'config') {
-                    document.getElementById('config-section').scrollIntoView({behavior: 'smooth'});
-                    return;
-                }
-
                 // Update nav
                 document.querySelectorAll('.nav-item').forEach(item => {
                     item.classList.remove('active');
                 });
-                event.target.classList.add('active');
+                if (event && event.target) event.target.classList.add('active');
 
                 // Hide all sections
-                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'scoring', 'summary', 'health'].forEach(s => {
+                ['dashboard', 'agents', 'topics', 'messages', 'simulator', 'config', 'scoring', 'summary', 'health'].forEach(s => {
                     const sectionEl = document.getElementById(`${s}-section`);
                     if (sectionEl) {
                         sectionEl.classList.add('hidden');
@@ -863,6 +866,8 @@
                     this.loadScoringStats();
                 } else if (section === 'summary') {
                     this.loadSummaryStats();
+                } else if (section === 'config') {
+                    config.init();
                 }
             },
 
@@ -1993,15 +1998,14 @@
                         return true;
                     } else {
                         // 如果系统配置没有，尝试从本地存储读取（备用）
-                        this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
+                        this.deepseekApiKey = safeStorage.getItem('deepseek_api_key') || '';
                         if (this.deepseekApiKey) {
                             this.log('⚠️ 使用本地存储的 API Key（建议在系统配置中配置）', 'warning');
                         }
                     }
                 } catch (error) {
                     console.error('加载系统 API Key 失败:', error);
-                    // 回退到本地存储
-                    this.deepseekApiKey = localStorage.getItem('deepseek_api_key') || '';
+                    this.deepseekApiKey = safeStorage.getItem('deepseek_api_key') || '';
                 }
                 return false;
             },
@@ -2075,8 +2079,7 @@
             // saveApiKeyFromModal() 和 clearApiKey() 已废弃
 
             async loadAgents() {
-                // 从 localStorage 加载运行时数据
-                const saved = localStorage.getItem('simulator_agents');
+                const saved = safeStorage.getItem('simulator_agents');
                 if (saved) {
                     this.agents = JSON.parse(saved);
                 }
@@ -2114,7 +2117,7 @@
             },
 
             saveAgents() {
-                localStorage.setItem('simulator_agents', JSON.stringify(this.agents));
+                safeStorage.setItem('simulator_agents', JSON.stringify(this.agents));
             },
 
             showAddAgentModal() {
@@ -2349,7 +2352,7 @@
                         </div>
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 600;">发言间隔（秒）</label>
-                            <input type="number" id="edit-sim-agent-interval" value="${agent.interval}" min="5" max="300"
+                            <input type="number" id="edit-sim-agent-interval" value="30" min="5" max="300"
                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px;">
                         </div>
                         <div style="margin-top: 20px; display: flex; gap: 10px;">
@@ -2636,7 +2639,7 @@ ${conversationHistory || '（暂无对话历史）'}
                             };
                         }
                         // 如果系统配置未设置，尝试使用本地存储的 API Key
-                        const localKey = this.deepseekApiKey || localStorage.getItem('deepseek_api_key');
+                        const localKey = this.deepseekApiKey || safeStorage.getItem('deepseek_api_key');
                         if (localKey) {
                             return {
                                 api_key: localKey,
@@ -2820,7 +2823,7 @@ ${conversationHistory || '（暂无对话历史）'}
                         await this.loadApiKeyStatus();
                         
                         // 同步更新智能体模拟器的 API Key
-                        localStorage.setItem('deepseek_api_key', apiKey);
+                        safeStorage.setItem('deepseek_api_key', apiKey);
                     } else {
                         alert('❌ 更新失败: ' + data.detail);
                     }
@@ -2858,15 +2861,15 @@ ${conversationHistory || '（暂无对话历史）'}
             }
         };
 
-        // Initialize on page load
+        // Initialize on page load (only if logged in)
         document.addEventListener('DOMContentLoaded', () => {
+            if (!__adminLoggedIn) return;
             admin.init();
-        });
-
-        // Close modal when clicking outside
-        document.getElementById('messageModal').addEventListener('click', (e) => {
-            if (e.target.id === 'messageModal') {
-                admin.closeModal();
+            var modal = document.getElementById('messageModal');
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target.id === 'messageModal') admin.closeModal();
+                });
             }
         });
     </script>
