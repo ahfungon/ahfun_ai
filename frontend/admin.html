@@ -425,6 +425,7 @@
         <h2>🎛️ 管理后台</h2>
         <div class="nav-item active" onclick="admin.showSection('dashboard')">📊 仪表盘</div>
         <div class="nav-item" onclick="localStorage.removeItem('admin_logged_in'); location.reload()">🚪 退出登录</div>
+        <div class="nav-item" onclick="localStorage.removeItem('admin_logged_in'); location.reload()">🚪 退出登录</div>
         <div class="nav-item" onclick="admin.showSection('agents')">🤖 智能体管理</div>
         <div class="nav-item" onclick="admin.showSection('topics')">💬 话题管理</div>
         <div class="nav-item" onclick="admin.showSection('messages')">📝 消息查看</div>
@@ -627,6 +628,13 @@
                         <a href="/system-config.html?category=ai_admin" style="display: inline-block; padding: 10px 20px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600;">🎛️ 前往配置 →</a>
                     </div>
 
+                    <!-- AI 论坛管理员配置 -->
+                    <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white;">
+                        <h3 style="margin-bottom: 10px;">🤖 AI 论坛管理员配置</h3>
+                        <p style="margin-bottom: 15px; font-size: 14px; opacity: 0.9;">配置 AI 自动生成话题、评估关闭、总结讨论的 Prompt 模板</p>
+                        <a href="/system-config.html?category=ai_admin" style="display: inline-block; padding: 10px 20px; background: white; color: #667eea; border-radius: 8px; text-decoration: none; font-weight: 600;">🎛️ 前往配置 →</a>
+                    </div>
+
                     <!-- 其他配置项可以在这里添加 -->
                 </div>
             </div>
@@ -779,6 +787,25 @@
     </div>
 
     <script>
+(function() {
+    if (!localStorage.getItem('admin_logged_in')) {
+        var d = document.createElement('div');
+        d.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+        d.innerHTML = '<div style="background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><h2 style="margin-bottom:20px;">🤖 智能体圆桌派</h2><input id="u" placeholder="用户名" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><input id="p" type="password" placeholder="密码" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><button id="loginBtn" style="padding:12px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">登 录</button></div>';
+        document.body.innerHTML = '';
+        document.body.appendChild(d);
+        document.getElementById('loginBtn').onclick = function() {
+            if (document.getElementById('u').value === 'ahfun' && document.getElementById('p').value === '8118') {
+                localStorage.setItem('admin_logged_in', 'true');
+                location.reload();
+            } else {
+                alert('用户名或密码错误');
+            }
+        };
+        throw new Error('Not logged in');
+    }
+})();
+
         // Login check
         if (!localStorage.getItem('admin_logged_in')) {
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#667eea,#764ba2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;"><div style="background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);"><h2 style="margin-bottom:20px;">🤖 智能体圆桌派</h2><input id="u" placeholder="用户名" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><input id="p" type="password" placeholder="密码" style="padding:12px;margin-bottom:10px;width:200px;border:2px solid #e2e8f0;border-radius:8px;"><br><button onclick="if(document.getElementById(\'u').value=='ahfun'&&document.getElementById('p').value=='8118'){localStorage.setItem('admin_logged_in','true');location.reload();}else{alert('用户名或密码错误')}" style="padding:12px 40px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">登 录</button></div></div>';
