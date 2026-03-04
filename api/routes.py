@@ -274,6 +274,7 @@ async def monitor_closed_topics(
             "title": topic.title,
             "topic_description": topic.topic_description,
             "status": topic.status,
+            "summary": topic.summary or "",
             "end_score": topic.end_score,
             "message_count": message_count,
             "created_at": topic.created_at.isoformat() + 'Z' if topic.created_at else "",

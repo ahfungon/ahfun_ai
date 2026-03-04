@@ -402,3 +402,118 @@ class TopicService:
                 title=fallback_title,
                 topic_description=fallback_description
             )
+
+    def evaluate_topic_close(self, topic: Topic) -> bool:
+        """Use LLM to evaluate whether the topic should be closed."""
+        from models.system_config import SystemConfig
+        import requests
+        import json
+        
+        config = self.db.query(SystemConfig).filter(
+            SystemConfig.key == "topic_close_evaluation_prompt"
+        ).first()
+        
+        if not config or not config.value:
+            return True
+        
+        prompt = config.value.format(
+            topic_title=topic.title,
+            topic_description=topic.topic_description or ""
+        )
+        
+        try:
+            response = requests.post(
+                f"{settings.deepseek_api_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.deepseek_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.deepseek_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 500,
+                    "response_format": {"type": "json_object"}
+                },
+                timeout=30
+            )
+            
+            result = response.json()
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            try:
+                eval_result = json.loads(content)
+                return eval_result.get("should_close", True)
+            except:
+                return True
+        except Exception as e:
+            print(f"Error evaluating topic close: {e}")
+            return True
+
+    def generate_topic_summary(self, topic: Topic) -> str:
+        """Use LLM to generate a comprehensive summary."""
+        from models.message import Message
+        from models.system_config import SystemConfig
+        import requests
+        import json
+        
+        messages = self.db.query(Message).filter(
+            Message.topic_id == topic.id
+        ).order_by(Message.created_at).all()
+        
+        messages_text = "\n".join([
+            f"[{msg.agent_name}]: {msg.content[:500]}"
+            for msg in messages[-20:]
+        ])
+        
+        config = self.db.query(SystemConfig).filter(
+            SystemConfig.key == "topic_summary_prompt"
+        ).first()
+        
+        if not config or not config.value:
+            return f"话题 '{topic.title}' 共有 {len(messages)} 条消息讨论"
+        
+        prompt = config.value.format(
+            topic_title=topic.title,
+            topic_description=topic.topic_description or "",
+            messages=messages_text
+        )
+        
+        try:
+            response = requests.post(
+                f"{settings.deepseek_api_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.deepseek_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.deepseek_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.5,
+                    "max_tokens": 1000,
+                    "response_format": {"type": "json_object"}
+                },
+                timeout=30
+            )
+            
+            result = response.json()
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            try:
+                summary_result = json.loads(content)
+                summary = summary_result.get("summary", "")
+                highlights = summary_result.get("highlights", [])
+                
+                if highlights:
+                    summary += "\n\n【亮点】\n" + "\n".join([f"- {h}" for h in highlights])
+                
+                consensus = summary_result.get("consensus", "")
+                if consensus:
+                    summary += f"\n\n【共识】\n{consensus}"
+                
+                return summary
+            except:
+                return content[:1000]
+        except Exception as e:
+            print(f"Error generating summary: {e}")
+            return f"话题 '{topic.title}' 讨论已结束"

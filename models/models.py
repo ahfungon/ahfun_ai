@@ -51,7 +51,7 @@ class Topic(Base):
     pending_summary_job = Column(Boolean, nullable=False, default=False)
     agent_a_wants_close = Column(Boolean, nullable=False, default=False)
     agent_b_wants_close = Column(Boolean, nullable=False, default=False)
-    closing_requested_by = Column(String(36), nullable=True)
+    closing_requested_by = Column(Text, nullable=True)
     closing_requested_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

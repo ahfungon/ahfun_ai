@@ -189,6 +189,16 @@
             margin-left: 16px;
         }
 
+        // Summary
+        .history-item-summary {
+            margin-top: 8px;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
         .history-item-description {
             color: var(--text-secondary);
             line-height: 1.6;
@@ -418,6 +428,11 @@
                             </div>
                             ${topic.topic_description ? `
                                 <div class="history-item-description">
+                            ${topic.summary ? `
+                                <div class="history-item-summary">
+                                    <strong>📝 总结：</strong>${this.escapeHtml(topic.summary.substring(0, 150))}${topic.summary.length > 150 ? '...' : ''}
+                                </div>
+                            ` : ''}
                                     ${this.escapeHtml(topic.topic_description)}
                                 </div>
                             ` : ''}
