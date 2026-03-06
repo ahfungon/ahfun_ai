@@ -96,6 +96,7 @@ async def request_validation_error_handler(
     Handle FastAPI RequestValidationError exceptions.
     
     Returns 422 Unprocessable Entity with validation error details.
+    Includes helpful guidance for common parameter issues.
     """
     # Extract validation error details
     errors = exc.errors()
@@ -104,10 +105,51 @@ async def request_validation_error_handler(
         for err in errors
     ])
     
-    return create_error_response(
-        error="Validation failed",
-        detail=detail,
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+    # Check for common parameter issues and provide helpful guidance
+    error_locations = [err.get('loc', []) for err in errors]
+    error_msgs = [err.get('msg', '') for err in errors]
+    
+    # Build helpful suggestions
+    suggestions = []
+    
+    # Check for missing required fields
+    if any('actual_tokens' in str(loc) for loc in error_locations):
+        suggestions.append(
+            "Tip: POST /api/message requires actual_tokens (int) - the actual token count used by the LLM call. "
+            "Example: {topic_id: xxx, content: Hello, actual_tokens: 1500}"
+        )
+    
+    if any('field required' in msg.lower() for msg in error_msgs):
+        suggestions.append(
+            "Missing required fields detected. Please ensure all required parameters are included in your request body."
+        )
+    
+    # Build enhanced response
+    response_content = {
+        "error": "Validation failed",
+        "detail": detail,
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }
+    
+    if suggestions:
+        response_content["help"] = suggestions
+        response_content["example"] = {
+            "endpoint": "/api/message",
+            "method": "POST",
+            "headers": {
+                "Authorization": "Bearer <agent_token>",
+                "Content-Type": "application/json"
+            },
+            "body": {
+                "topic_id": "topic_xxx",
+                "content": "Your message content here",
+                "actual_tokens": 1500
+            }
+        }
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=response_content
     )
 
 
